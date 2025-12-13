@@ -1,4 +1,4 @@
-image: rust:latest
+image: rust:latest-bookworm
 
 stages: [lint, build, publish]
 
