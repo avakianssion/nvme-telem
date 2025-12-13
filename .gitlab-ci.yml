@@ -1,0 +1,36 @@
+image: stable
+
+stages: [lint, test, build, publish]
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  RUSTFLAGS: "-Dwarnings"
+
+cache:
+  key: cargo
+  paths:
+    - .cargo/registry
+    - .cargo/git
+    - target/
+
+fmt:
+  stage: lint
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
+clippy:
+  stage: lint
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features
+
+test:
+  stage: test
+  script:
+    - cargo test --all-features
+
+build_release:
+  stage: build
+  script:
+    - cargo build --release
