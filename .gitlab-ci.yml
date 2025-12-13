@@ -1,19 +1,13 @@
-image: rust:latest
+image: rockylinux:9
 
 stages: [lint, build, publish]
 
 before_script:
-  - apt-get update
-  - apt-get install -y --no-install-recommends
-    clang
-    llvm-dev
-    libclang-dev
-    pkg-config
-    build-essential
-  - rm -rf /var/lib/apt/lists/*
+  - dnf install -y clang-devel llvm-devel
+  - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+  - source "$HOME/.cargo/env"
   - rustup component add rustfmt clippy
-  - export LIBCLANG_PATH=/usr/lib/llvm-14/lib
-
+  
 fmt:
   stage: lint
   script:
