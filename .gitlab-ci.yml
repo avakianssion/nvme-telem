@@ -1,4 +1,4 @@
-image: rust:stable
+image: rust:latest
 
 stages: [lint, test, build, publish]
 
