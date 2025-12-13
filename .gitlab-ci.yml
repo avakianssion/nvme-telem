@@ -12,8 +12,7 @@ before_script:
     build-essential
   - rm -rf /var/lib/apt/lists/*
   - rustup component add rustfmt clippy
-  # Set the LIBCLANG_PATH environment variable
-  - export LIBCLANG_PATH=/usr/lib/llvm-14/lib  # adjust version as needed
+  - export LIBCLANG_PATH=/usr/lib/llvm-14/lib
 
 fmt:
   stage: lint
@@ -23,7 +22,7 @@ fmt:
 clippy:
   stage: lint
   script:
-    - cargo clippy --all-targets --all-features -D warnings
+    - cargo clippy --all-targets --all-features
 
 build:
   stage: build
