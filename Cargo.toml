@@ -1,6 +1,12 @@
 [package]
 name = "nvme-telem"
 version = "0.1.0"
-edition = "2024"
+edition = "2024"          
+license = "MIT"
+description = "NVMe SMART / telemetry collection for Linux"
+repository = "https://gitlab.com/avakianssion/nvme-telem"
+readme = "README.md"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
+nvme-cli-sys = "0.1.5"
