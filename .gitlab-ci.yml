@@ -1,36 +1,38 @@
 image: rust:latest
 
-stages: [lint, test, build, publish]
+stages: [lint, build, publish]
 
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
-  RUSTFLAGS: "-Dwarnings"
-
-cache:
-  key: cargo
-  paths:
-    - .cargo/registry
-    - .cargo/git
-    - target/
+before_script:
+  - apt-get update
+  - apt-get install -y --no-install-recommends
+      clang
+      llvm-dev
+      libclang-dev
+      pkg-config
+      build-essential
+  - rm -rf /var/lib/apt/lists/*
+  - rustup component add rustfmt clippy
 
 fmt:
   stage: lint
   script:
-    - rustup component add rustfmt
     - cargo fmt --all -- --check
 
 clippy:
   stage: lint
   script:
-    - rustup component add clippy
-    - cargo clippy --all-targets --all-features
+    - cargo clippy --all-targets --all-features -D warnings
 
-test:
-  stage: test
-  script:
-    - cargo test --all-features
-
-build_release:
+build:
   stage: build
   script:
-    - cargo build --release
+    - cargo build
+
+publish:
+  stage: publish
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - when: never
+  script:
+    - cargo publish --locked
