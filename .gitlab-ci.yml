@@ -1,17 +1,19 @@
-image: rust:latest-bookworm
+image: rust:latest
 
 stages: [lint, build, publish]
 
 before_script:
   - apt-get update
   - apt-get install -y --no-install-recommends
-      clang
-      llvm-dev
-      libclang-dev
-      pkg-config
-      build-essential
+    clang
+    llvm-dev
+    libclang-dev
+    pkg-config
+    build-essential
   - rm -rf /var/lib/apt/lists/*
   - rustup component add rustfmt clippy
+  # Set the LIBCLANG_PATH environment variable
+  - export LIBCLANG_PATH=/usr/lib/llvm-14/lib  # adjust version as needed
 
 fmt:
   stage: lint
