@@ -1,11 +1,12 @@
 [package]
 name = "nvme-telem"
 version = "0.1.0"
-edition = "2024"          
+edition = "2021"          
 license = "MIT"
 description = "NVMe SMART / telemetry collection for Linux"
 repository = "https://gitlab.com/avakianssion/nvme-telem"
 readme = "README.md"
+keywords = ["nvme", "storage", "telemetry", "smart", "monitoring"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
