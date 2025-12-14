@@ -66,7 +66,7 @@ impl CtrlIdentity {
             ieee_oui: raw.ieee,
             cntlid: raw.cntlid,
             ver: raw.ver,
-            subnqn: parse_nqn_field(&raw.subnqn),
+            subnqn: parse_ascii_field(&raw.subnqn),
             fguid: convert_cchar_to_u8_array_16(&raw.fguid),
             cntrltype: raw.cntrltype,
         }
@@ -612,19 +612,6 @@ impl CtrlFabric {
 /// This helper function is required because serial number, model number,
 /// and firmawre revision are space padded.
 fn parse_ascii_field(bytes: &[c_char]) -> String {
-    // Convert c_char to u8 safely
-    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
-
-    String::from_utf8_lossy(&unsigned)
-        .trim_end_matches('\0')
-        .trim()
-        .to_string()
-}
-
-/// Parse NVMe Qualified Name field from raw c_char byte array.
-///
-/// NQN format is defined in NVMe spec. This is a simple parsing helper.
-fn parse_nqn_field(bytes: &[c_char]) -> String {
     // Convert c_char to u8 safely
     let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
 
