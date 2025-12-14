@@ -2,12 +2,13 @@
 
 use nvme_cli_sys::{
     nvme_admin_cmd, nvme_admin_opcode::nvme_admin_get_log_page,
-    nvme_admin_opcode::nvme_admin_identify, nvme_id_ctrl, nvme_id_power_state, nvme_smart_log,
+    nvme_admin_opcode::nvme_admin_identify, nvme_id_ctrl, nvme_smart_log,
 };
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io;
 use std::mem::{size_of, zeroed};
+use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 
 /// Controller identity and basic information.
@@ -59,14 +60,14 @@ impl CtrlIdentity {
             nvme_name,
             vid: raw.vid,
             ssvid: raw.ssvid,
-            serial_number: parse_ascii_field(&raw.sn), // TODO: implement parse_ascii_field
-            model_number: parse_ascii_field(&raw.mn),  // TODO: implement parse_ascii_field
-            firmware_rev: parse_ascii_field(&raw.fr),  // TODO: implement parse_ascii_field
+            serial_number: parse_ascii_field(&raw.sn),
+            model_number: parse_ascii_field(&raw.mn),
+            firmware_rev: parse_ascii_field(&raw.fr),
             ieee_oui: raw.ieee,
             cntlid: raw.cntlid,
             ver: raw.ver,
-            subnqn: parse_nqn_field(&raw.subnqn), // TODO: implement parse_nqn_field
-            fguid: raw.fguid,
+            subnqn: parse_nqn_field(&raw.subnqn),
+            fguid: convert_cchar_to_u8_array_16(&raw.fguid),
             cntrltype: raw.cntrltype,
         }
     }
@@ -580,7 +581,7 @@ impl CtrlFabric {
     }
 }
 
-// TOOD - figure out the rust syntax here :)
+/// TODO - Implement
 /// Controller vendor-specific data.
 ///
 /// 1024-byte vendor-specific area used by manufacturers for proprietary
@@ -604,20 +605,42 @@ impl CtrlFabric {
 //     }
 // }
 
-/// Parse ASCII field from raw byte array, trimming spaces.
+/// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
 ///
-/// TODO: Implement proper ASCII parsing and validation
-fn parse_ascii_field(bytes: &[u8]) -> String {
-    // TODO: implement
-    String::new() // or String::from("TODO")
+/// NVMe spec uses C char arrays for ASCII fields. This function converts
+/// to unsigned bytes, then parses as UTF-8 and trims whitespace/nulls.
+/// This helper function is required because serial number, model number,
+/// and firmawre revision are space padded.
+fn parse_ascii_field(bytes: &[c_char]) -> String {
+    // Convert c_char to u8 safely
+    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
+
+    String::from_utf8_lossy(&unsigned)
+        .trim_end_matches('\0')
+        .trim()
+        .to_string()
 }
 
-/// Parse NQN (NVMe Qualified Name) field.
+/// Parse NVMe Qualified Name field from raw c_char byte array.
 ///
-/// TODO: Implement proper NQN parsing and validation per NVMe spec
-fn parse_nqn_field(bytes: &[u8]) -> String {
-    // TODO: implement
-    String::new() // or String::from("TODO")
+/// NQN format is defined in NVMe spec. This is a simple parsing helper.
+fn parse_nqn_field(bytes: &[c_char]) -> String {
+    // Convert c_char to u8 safely
+    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
+
+    String::from_utf8_lossy(&unsigned)
+        .trim_end_matches('\0')
+        .trim()
+        .to_string()
+}
+
+/// Convert [c_char; N] to [u8; N] for GUID fields.
+fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
+    let mut result = [0u8; 16];
+    for (i, &b) in bytes.iter().enumerate() {
+        result[i] = b as u8;
+    }
+    result
 }
 
 /// Extract raw nvme_id_ctrl using the Identify admin command.
@@ -673,7 +696,7 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
 /// exceed 2^64-1 so we would likely end up truncating data.
 /// TODO - consider changing u64 to u128.
 #[derive(Debug, Serialize)]
-pub struct NvmesSmartLog {
+pub struct NvmeSmartLog {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -861,8 +884,8 @@ pub struct NvmesSmartLog {
     pub thm_temp2_total_time: Option<u64>,
 }
 
-impl NvmesSmartLog {
-    /// Create a new NvmesSmartLog from raw nvme_smart_log data.
+impl NvmeSmartLog {
+    /// Create a new NvmeSmartLog from raw nvme_smart_log data.
     pub fn new(nvme_name: String, raw: &nvme_smart_log) -> Self {
         Self {
             nvme_name,
@@ -979,32 +1002,4 @@ pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
         )),
         Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
     }
-}
-
-/// Collect SMART log data from all NVMe controllers.
-///
-/// Discovers all NVMe controllers on the system and retrieves their SMART logs.
-/// Errors for individual controllers are logged to stderr but don't stop collection.
-///
-/// # Returns
-/// A vector of `NvmesSmartLog` structs, one for each successfully queried controller.
-/// TODO - I don't think we need this anymore since this is now a lib.
-pub fn collect_smart_log() -> Vec<NvmesSmartLog> {
-    let mut results = Vec::new();
-    let ctrls = list_nvme_controllers();
-
-    for ctrl in ctrls {
-        let dev_path = format!("/dev/{}", ctrl);
-
-        match get_nvme_smart_log_raw(&dev_path) {
-            Ok(raw) => {
-                let mapped = NvmesSmartLog::new(ctrl.clone(), &raw);
-                results.push(mapped);
-            }
-            Err(e) => {
-                eprintln!("Failed to fetch SMART log for {}: {}", dev_path, e);
-            }
-        }
-    }
-    results
 }
