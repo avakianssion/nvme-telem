@@ -616,8 +616,6 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let fd = file.as_raw_fd();
 
     // Identify Controller payload is 4096 bytes based on the C bindings in the nvme_cli_sys crate.
-    // If nvme_id_ctrl from your crate is exactly 4096, great.
-    // If it's smaller, you should use a [u8; 4096] buffer instead.
     let mut id: nvme_id_ctrl = unsafe { zeroed() };
 
     let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
