@@ -581,30 +581,6 @@ impl CtrlFabric {
     }
 }
 
-/// TODO - Implement
-/// Controller vendor-specific data.
-///
-/// 1024-byte vendor-specific area used by manufacturers for proprietary
-/// features and information.
-// #[derive(Debug, Serialize)]
-// pub struct CtrlVendorSpecific {
-//     /// NVMe device name (e.g., "nvme0")
-//     pub nvme_name: String,
-
-//     /// Vendor Specific area (1024 bytes)
-//     /// Most vendors use this for proprietary features
-//     pub vs: [u8; 1024],
-// }
-
-// impl CtrlVendorSpecific {
-//     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
-//         Self {
-//             nvme_name,
-//             vs: raw.vs,
-//         }
-//     }
-// }
-
 /// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
 ///
 /// NVMe spec uses C char arrays for ASCII fields. This function converts
@@ -647,8 +623,8 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
     let id_len = size_of::<nvme_id_ctrl>() as u32;
 
-    let cns: u8 = 0x01; // Identify Controller
-    let cntlid: u16 = 0x0000; // Usually 0
+    let cns: u8 = 0x01;
+    let cntlid: u16 = 0x0000;
     let cdw10: u32 = (cns as u32) | ((cntlid as u32) << 16);
 
     let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
@@ -663,12 +639,12 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
 
     match ret {
-        Ok(status) if status == 0 => Ok(id),
-        Ok(status) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("NVMe admin command failed, status={:#x}", status),
-        )),
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        Ok(0) => Ok(id),
+        Ok(status) => Err(io::Error::other(format!(
+            "NVMe admin command failed, status={:#x}",
+            status
+        ))),
+        Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
 
@@ -676,12 +652,6 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
 ///
 /// Provides SMART and general health information over the life of the controller.
 /// Data is retained across power cycles unless otherwise specified.
-///
-/// # Note
-/// Potential issue - we use u64 for all values in the struct.
-/// If a drive runs long enough or has crazy write workload, the 128-bit SMART counters might
-/// exceed 2^64-1 so we would likely end up truncating data.
-/// TODO - consider changing u64 to u128.
 #[derive(Debug, Serialize)]
 pub struct NvmeSmartLog {
     /// NVMe device name (e.g., "nvme0")
@@ -877,12 +847,12 @@ impl NvmeSmartLog {
         Self {
             nvme_name,
 
-            critical_warning: raw.critical_warning as u8,
+            critical_warning: raw.critical_warning,
             temperature: u16::from_le_bytes([raw.temperature[0], raw.temperature[1]]),
-            avail_spare: raw.avail_spare as u8,
-            spare_thresh: raw.spare_thresh as u8,
-            percent_used: raw.percent_used as u8,
-            endurance_grp_critical_warning_summary: raw.endu_grp_crit_warn_sumry as u8,
+            avail_spare: raw.avail_spare,
+            spare_thresh: raw.spare_thresh,
+            percent_used: raw.percent_used,
+            endurance_grp_critical_warning_summary: raw.endu_grp_crit_warn_sumry,
 
             data_units_read: u128::from_le_bytes(raw.data_units_read),
             data_units_written: u128::from_le_bytes(raw.data_units_written),
@@ -895,46 +865,46 @@ impl NvmeSmartLog {
             media_errors: u128::from_le_bytes(raw.media_errors),
             num_err_log_entries: u128::from_le_bytes(raw.num_err_log_entries),
 
-            warning_temp_time: u32::from(raw.warning_temp_time),
-            critical_comp_time: u32::from(raw.critical_comp_time),
+            warning_temp_time: raw.warning_temp_time,
+            critical_comp_time: raw.critical_comp_time,
 
-            temperature_sensor_1: match u16::from(raw.temp_sensor[0]) {
+            temperature_sensor_1: match raw.temp_sensor[0] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_2: match u16::from(raw.temp_sensor[1]) {
+            temperature_sensor_2: match raw.temp_sensor[1] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_3: match u16::from(raw.temp_sensor[2]) {
+            temperature_sensor_3: match raw.temp_sensor[2] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_4: match u16::from(raw.temp_sensor[3]) {
+            temperature_sensor_4: match raw.temp_sensor[3] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_5: match u16::from(raw.temp_sensor[4]) {
+            temperature_sensor_5: match raw.temp_sensor[4] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_6: match u16::from(raw.temp_sensor[5]) {
+            temperature_sensor_6: match raw.temp_sensor[5] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_7: match u16::from(raw.temp_sensor[6]) {
+            temperature_sensor_7: match raw.temp_sensor[6] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
-            temperature_sensor_8: match u16::from(raw.temp_sensor[7]) {
+            temperature_sensor_8: match raw.temp_sensor[7] {
                 0 => None, // Sensor not present
                 v => Some(v),
             },
 
-            thm_temp1_trans_count: u32::from(raw.thm_temp1_trans_count),
-            thm_temp2_trans_count: u32::from(raw.thm_temp2_trans_count),
-            thm_temp1_total_time: u32::from(raw.thm_temp1_total_time),
-            thm_temp2_total_time: u32::from(raw.thm_temp2_total_time),
+            thm_temp1_trans_count: raw.thm_temp1_trans_count,
+            thm_temp2_trans_count: raw.thm_temp2_trans_count,
+            thm_temp1_total_time: raw.thm_temp1_total_time,
+            thm_temp2_total_time: raw.thm_temp2_total_time,
         }
     }
 }
@@ -991,7 +961,7 @@ pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
     let log_len = size_of::<nvme_smart_log>() as u32;
 
     let log_id: u8 = 0x02; // SMART/Health Information - Log Page Identifier 02h
-    let numd: u32 = (log_len / 4 - 1).into();
+    let numd: u32 = log_len / 4 - 1;
     let cdw10: u32 = (log_id as u32) | (numd << 16);
 
     let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
@@ -1008,11 +978,11 @@ pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
     let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
 
     match ret {
-        Ok(status) if status == 0 => Ok(log),
-        Ok(status) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("NVMe admin command failed, status={:#x}", status),
-        )),
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        Ok(0) => Ok(log),
+        Ok(status) => Err(io::Error::other(format!(
+            "NVMe admin command failed, status={:#x}",
+            status
+        ))),
+        Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
