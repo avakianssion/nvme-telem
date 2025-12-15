@@ -66,7 +66,7 @@ impl CtrlIdentity {
             ieee_oui: raw.ieee,
             cntlid: raw.cntlid,
             ver: raw.ver,
-            subnqn: parse_nqn_field(&raw.subnqn),
+            subnqn: parse_ascii_field(&raw.subnqn),
             fguid: convert_cchar_to_u8_array_16(&raw.fguid),
             cntrltype: raw.cntrltype,
         }
@@ -581,30 +581,6 @@ impl CtrlFabric {
     }
 }
 
-/// TODO - Implement
-/// Controller vendor-specific data.
-///
-/// 1024-byte vendor-specific area used by manufacturers for proprietary
-/// features and information.
-// #[derive(Debug, Serialize)]
-// pub struct CtrlVendorSpecific {
-//     /// NVMe device name (e.g., "nvme0")
-//     pub nvme_name: String,
-
-//     /// Vendor Specific area (1024 bytes)
-//     /// Most vendors use this for proprietary features
-//     pub vs: [u8; 1024],
-// }
-
-// impl CtrlVendorSpecific {
-//     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
-//         Self {
-//             nvme_name,
-//             vs: raw.vs,
-//         }
-//     }
-// }
-
 /// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
 ///
 /// NVMe spec uses C char arrays for ASCII fields. This function converts
@@ -612,19 +588,6 @@ impl CtrlFabric {
 /// This helper function is required because serial number, model number,
 /// and firmawre revision are space padded.
 fn parse_ascii_field(bytes: &[c_char]) -> String {
-    // Convert c_char to u8 safely
-    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
-
-    String::from_utf8_lossy(&unsigned)
-        .trim_end_matches('\0')
-        .trim()
-        .to_string()
-}
-
-/// Parse NVMe Qualified Name field from raw c_char byte array.
-///
-/// NQN format is defined in NVMe spec. This is a simple parsing helper.
-fn parse_nqn_field(bytes: &[c_char]) -> String {
     // Convert c_char to u8 safely
     let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
 
@@ -660,8 +623,8 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
     let id_len = size_of::<nvme_id_ctrl>() as u32;
 
-    let cns: u8 = 0x01; // Identify Controller
-    let cntlid: u16 = 0x0000; // Usually 0
+    let cns: u8 = 0x01;
+    let cntlid: u16 = 0x0000;
     let cdw10: u32 = (cns as u32) | ((cntlid as u32) << 16);
 
     let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
@@ -676,12 +639,12 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
 
     match ret {
-        Ok(status) if status == 0 => Ok(id),
-        Ok(status) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("NVMe admin command failed, status={:#x}", status),
-        )),
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        Ok(0) => Ok(id),
+        Ok(status) => Err(io::Error::other(format!(
+            "NVMe admin command failed, status={:#x}",
+            status
+        ))),
+        Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
 
@@ -689,12 +652,6 @@ pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
 ///
 /// Provides SMART and general health information over the life of the controller.
 /// Data is retained across power cycles unless otherwise specified.
-///
-/// # Note
-/// Potential issue - we use u64 for all values in the struct.
-/// If a drive runs long enough or has crazy write workload, the 128-bit SMART counters might
-/// exceed 2^64-1 so we would likely end up truncating data.
-/// TODO - consider changing u64 to u128.
 #[derive(Debug, Serialize)]
 pub struct NvmeSmartLog {
     /// NVMe device name (e.g., "nvme0")
@@ -711,31 +668,31 @@ pub struct NvmeSmartLog {
     /// - Bit 7: Reserved
     ///
     /// A value of 0 means no critical warnings
-    pub critical_warning: Option<u64>,
+    pub critical_warning: u8,
 
     /// Composite Temperature (Bytes 02:01).
     ///
     /// Current temperature in Kelvins representing the composite temperature
     /// of the controller and associated namespaces.
-    pub temperature: Option<u64>,
+    pub temperature: u16,
 
     /// Available Spare (Byte 03).
     ///
     /// Normalized percentage (0-100%) of remaining spare capacity available.
-    pub avail_spare: Option<u64>,
+    pub avail_spare: u8,
 
     /// Available Spare Threshold (Byte 04).
     ///
     /// When Available Spare falls below this threshold, an asynchronous event may occur.
     /// Normalized percentage (0-100%).
-    pub spare_thresh: Option<u64>,
+    pub spare_thresh: u8,
 
     /// Percentage Used (Byte 05).
     ///
     /// Vendor specific estimate of the percentage of NVM subsystem life used.
     /// Value of 100 indicates estimated endurance has been consumed.
     /// May exceed 100. Updated once per power-on hour.
-    pub percent_used: Option<u64>,
+    pub percent_used: u8,
 
     /// Endurance Group Critical Warning Summary (Byte 06).
     ///
@@ -744,144 +701,144 @@ pub struct NvmeSmartLog {
     /// - Bit 2: Endurance Group degraded reliability
     /// - Bit 3: Endurance Group read-only
     /// - Bits 4-7: Reserved
-    pub endurance_grp_critical_warning_summary: Option<u64>,
+    pub endurance_grp_critical_warning_summary: u8,
 
     /// Data Units Read (Bytes 47:32).
     ///
     /// Number of 512-byte data units read from controller.
     /// Reported in thousands (value of 1 = 1,000 units).
     /// Does not include metadata.
-    pub data_units_read: Option<u64>,
+    pub data_units_read: u128,
 
     /// Data Units Written (Bytes 63:48).
     ///
     /// Number of 512-byte data units written to controller.
     /// Reported in thousands (value of 1 = 1,000 units).
     /// Does not include metadata.
-    pub data_units_written: Option<u64>,
+    pub data_units_written: u128,
 
     /// Host Read Commands (Bytes 79:64).
     ///
     /// Number of SMART Host Read Commands completed by the controller.
-    pub host_read_commands: Option<u64>,
+    pub host_read_commands: u128,
 
     /// Host Write Commands (Bytes 95:80).
     ///
     /// Number of User Data Out Commands completed by the controller.
-    pub host_write_commands: Option<u64>,
+    pub host_write_commands: u128,
 
     /// Controller Busy Time (Bytes 111:96).
     ///
     /// Amount of time controller is busy with I/O commands.
     /// Reported in minutes.
-    pub controller_busy_time: Option<u64>,
+    pub controller_busy_time: u128,
 
     /// Power Cycles (Bytes 127:112).
     ///
     /// Number of power cycles.
-    pub power_cycles: Option<u64>,
+    pub power_cycles: u128,
 
     /// Power On Hours (Bytes 143:128).
     ///
     /// Number of power-on hours.
     /// May not include time controller was powered in non-operational state.
-    pub power_on_hours: Option<u64>,
+    pub power_on_hours: u128,
 
     /// Unsafe Shutdowns / Unexpected Power Losses (Bytes 159:144).
     ///
     /// Count of unexpected power losses where controller was not ready
     /// to be powered off or media was not in shutdown state.
-    pub unsafe_shutdowns: Option<u64>,
+    pub unsafe_shutdowns: u128,
 
     /// Media and Data Integrity Errors (Bytes 175:160).
     ///
     /// Number of occurrences where controller detected un-recovered data integrity error.
     /// Includes uncorrectable ECC, CRC checksum failure, LBA tag mismatch.
-    pub media_errors: Option<u64>,
+    pub media_errors: u128,
 
     /// Number of Error Information Log Entries (Bytes 191:176).
     ///
     /// Number of Error Information Log Entries over the life of the controller.
-    pub num_err_log_entries: Option<u64>,
+    pub num_err_log_entries: u128,
 
     /// Warning Composite Temperature Time (Bytes 195:192).
     ///
     /// Time in minutes that Composite Temperature is >= Warning Threshold
     /// and < Critical Threshold.
-    pub warning_temp_time: Option<u64>,
+    pub warning_temp_time: u32,
 
     /// Critical Composite Temperature Time (Bytes 199:196).
     ///
     /// Time in minutes that Composite Temperature is >= Critical Threshold.
-    pub critical_comp_time: Option<u64>,
+    pub critical_comp_time: u32,
 
     /// Temperature Sensor 1 (Bytes 201:200).
     ///
     /// Current temperature reported by temperature sensor 1 in Kelvins.
-    pub temperature_sensor_1: Option<u64>,
+    pub temperature_sensor_1: Option<u16>,
 
     /// Temperature Sensor 2 (Bytes 203:202).
     ///
     /// Current temperature reported by temperature sensor 2 in Kelvins.
-    pub temperature_sensor_2: Option<u64>,
+    pub temperature_sensor_2: Option<u16>,
 
     /// Temperature Sensor 3 (Bytes 205:204).
     ///
     /// Current temperature reported by temperature sensor 3 in Kelvins.
-    pub temperature_sensor_3: Option<u64>,
+    pub temperature_sensor_3: Option<u16>,
 
     /// Temperature Sensor 4 (Bytes 207:206).
     ///
     /// Current temperature reported by temperature sensor 4 in Kelvins.
-    pub temperature_sensor_4: Option<u64>,
+    pub temperature_sensor_4: Option<u16>,
 
     /// Temperature Sensor 5 (Bytes 209:208).
     ///
     /// Current temperature reported by temperature sensor 5 in Kelvins.
-    pub temperature_sensor_5: Option<u64>,
+    pub temperature_sensor_5: Option<u16>,
 
     /// Temperature Sensor 6 (Bytes 211:210).
     ///
     /// Current temperature reported by temperature sensor 6 in Kelvins.
-    pub temperature_sensor_6: Option<u64>,
+    pub temperature_sensor_6: Option<u16>,
 
     /// Temperature Sensor 7 (Bytes 213:212).
     ///
     /// Current temperature reported by temperature sensor 7 in Kelvins.
-    pub temperature_sensor_7: Option<u64>,
+    pub temperature_sensor_7: Option<u16>,
 
     /// Temperature Sensor 8 (Bytes 215:214).
     ///
     /// Current temperature reported by temperature sensor 8 in Kelvins.
-    pub temperature_sensor_8: Option<u64>,
+    pub temperature_sensor_8: Option<u16>,
 
     /// Thermal Management Temperature 1 Transition Count (Bytes 219:216).
     ///
     /// Number of times controller transitioned to lower power states to reduce
     /// temperature after rising above Thermal Management Temperature 1.
     /// Does not wrap after reaching 0xFFFFFFFF.
-    pub thm_temp1_trans_count: Option<u64>,
+    pub thm_temp1_trans_count: u32,
 
     /// Thermal Management Temperature 2 Transition Count (Bytes 223:220).
     ///
     /// Number of times controller performed heavy thermal throttling to reduce
     /// temperature after rising above Thermal Management Temperature 2.
     /// Does not wrap after reaching 0xFFFFFFFF.
-    pub thm_temp2_trans_count: Option<u64>,
+    pub thm_temp2_trans_count: u32,
 
     /// Total Time For Thermal Management Temperature 1 (Bytes 227:224).
     ///
     /// Number of seconds controller spent in lower power states due to
     /// Thermal Management Temperature 1. Reported in seconds.
     /// Does not wrap after reaching 0xFFFFFFFF.
-    pub thm_temp1_total_time: Option<u64>,
+    pub thm_temp1_total_time: u32,
 
     /// Total Time For Thermal Management Temperature 2 (Bytes 231:228).
     ///
     /// Number of seconds controller spent performing heavy throttling due to
     /// Thermal Management Temperature 2. Reported in seconds.
     /// Does not wrap after reaching 0xFFFFFFFF.
-    pub thm_temp2_total_time: Option<u64>,
+    pub thm_temp2_total_time: u32,
 }
 
 impl NvmeSmartLog {
@@ -889,39 +846,65 @@ impl NvmeSmartLog {
     pub fn new(nvme_name: String, raw: &nvme_smart_log) -> Self {
         Self {
             nvme_name,
-            critical_warning: Some(raw.critical_warning as u64),
-            temperature: Some(u16::from_le_bytes([raw.temperature[0], raw.temperature[1]]) as u64),
-            avail_spare: Some(raw.avail_spare as u64),
-            spare_thresh: Some(raw.spare_thresh as u64),
-            percent_used: Some(raw.percent_used as u64),
-            endurance_grp_critical_warning_summary: Some(raw.endu_grp_crit_warn_sumry as u64),
-            data_units_read: Some(u128::from_le_bytes(raw.data_units_read) as u64),
-            data_units_written: Some(u128::from_le_bytes(raw.data_units_written) as u64),
-            host_read_commands: Some(u128::from_le_bytes(raw.host_reads) as u64),
-            host_write_commands: Some(u128::from_le_bytes(raw.host_writes) as u64),
-            controller_busy_time: Some(u128::from_le_bytes(raw.ctrl_busy_time) as u64),
-            power_cycles: Some(u128::from_le_bytes(raw.power_cycles) as u64),
-            power_on_hours: Some(u128::from_le_bytes(raw.power_on_hours) as u64),
-            unsafe_shutdowns: Some(u128::from_le_bytes(raw.unsafe_shutdowns) as u64),
-            media_errors: Some(u128::from_le_bytes(raw.media_errors) as u64),
-            num_err_log_entries: Some(u128::from_le_bytes(raw.num_err_log_entries) as u64),
-            warning_temp_time: Some(u32::from(raw.warning_temp_time) as u64),
-            critical_comp_time: Some(u32::from(raw.critical_comp_time) as u64),
 
-            // All 8 temperature sensors covered in the specs
-            temperature_sensor_1: Some(u16::from(raw.temp_sensor[0]) as u64),
-            temperature_sensor_2: Some(u16::from(raw.temp_sensor[1]) as u64),
-            temperature_sensor_3: Some(u16::from(raw.temp_sensor[2]) as u64),
-            temperature_sensor_4: Some(u16::from(raw.temp_sensor[3]) as u64),
-            temperature_sensor_5: Some(u16::from(raw.temp_sensor[4]) as u64),
-            temperature_sensor_6: Some(u16::from(raw.temp_sensor[5]) as u64),
-            temperature_sensor_7: Some(u16::from(raw.temp_sensor[6]) as u64),
-            temperature_sensor_8: Some(u16::from(raw.temp_sensor[7]) as u64),
+            critical_warning: raw.critical_warning,
+            temperature: u16::from_le_bytes([raw.temperature[0], raw.temperature[1]]),
+            avail_spare: raw.avail_spare,
+            spare_thresh: raw.spare_thresh,
+            percent_used: raw.percent_used,
+            endurance_grp_critical_warning_summary: raw.endu_grp_crit_warn_sumry,
 
-            thm_temp1_trans_count: Some(u32::from(raw.thm_temp1_trans_count) as u64),
-            thm_temp2_trans_count: Some(u32::from(raw.thm_temp2_trans_count) as u64),
-            thm_temp1_total_time: Some(u32::from(raw.thm_temp1_total_time) as u64),
-            thm_temp2_total_time: Some(u32::from(raw.thm_temp2_total_time) as u64),
+            data_units_read: u128::from_le_bytes(raw.data_units_read),
+            data_units_written: u128::from_le_bytes(raw.data_units_written),
+            host_read_commands: u128::from_le_bytes(raw.host_reads),
+            host_write_commands: u128::from_le_bytes(raw.host_writes),
+            controller_busy_time: u128::from_le_bytes(raw.ctrl_busy_time),
+            power_cycles: u128::from_le_bytes(raw.power_cycles),
+            power_on_hours: u128::from_le_bytes(raw.power_on_hours),
+            unsafe_shutdowns: u128::from_le_bytes(raw.unsafe_shutdowns),
+            media_errors: u128::from_le_bytes(raw.media_errors),
+            num_err_log_entries: u128::from_le_bytes(raw.num_err_log_entries),
+
+            warning_temp_time: raw.warning_temp_time,
+            critical_comp_time: raw.critical_comp_time,
+
+            temperature_sensor_1: match raw.temp_sensor[0] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_2: match raw.temp_sensor[1] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_3: match raw.temp_sensor[2] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_4: match raw.temp_sensor[3] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_5: match raw.temp_sensor[4] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_6: match raw.temp_sensor[5] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_7: match raw.temp_sensor[6] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+            temperature_sensor_8: match raw.temp_sensor[7] {
+                0 => None, // Sensor not present
+                v => Some(v),
+            },
+
+            thm_temp1_trans_count: raw.thm_temp1_trans_count,
+            thm_temp2_trans_count: raw.thm_temp2_trans_count,
+            thm_temp1_total_time: raw.thm_temp1_total_time,
+            thm_temp2_total_time: raw.thm_temp2_total_time,
         }
     }
 }
@@ -978,7 +961,7 @@ pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
     let log_len = size_of::<nvme_smart_log>() as u32;
 
     let log_id: u8 = 0x02; // SMART/Health Information - Log Page Identifier 02h
-    let numd: u32 = (log_len / 4 - 1).into();
+    let numd: u32 = log_len / 4 - 1;
     let cdw10: u32 = (log_id as u32) | (numd << 16);
 
     let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
@@ -995,11 +978,11 @@ pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
     let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
 
     match ret {
-        Ok(status) if status == 0 => Ok(log),
-        Ok(status) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("NVMe admin command failed, status={:#x}", status),
-        )),
-        Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        Ok(0) => Ok(log),
+        Ok(status) => Err(io::Error::other(format!(
+            "NVMe admin command failed, status={:#x}",
+            status
+        ))),
+        Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
