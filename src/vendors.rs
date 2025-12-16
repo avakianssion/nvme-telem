@@ -436,9 +436,11 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
     match ret {
         Ok(0) => {
             // Not all devices will support the ocp command - If we don't validate here, we might return garbage
+            // Validate OCP GUID
+            // Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.c(scao_guid)
             const OCP_GUID: [u8; 16] = [
-                0x28, 0x10, 0xaf, 0xc5, 0xbf, 0xea, 0xa4, 0xf2, 0x9c, 0x4f, 0x6f, 0x7c, 0xc9, 0x14,
-                0xd5, 0xaf,
+                0xC5, 0xAF, 0x10, 0x28, 0xEA, 0xBF, 0xF2, 0xA4, 0x9C, 0x4F, 0x6F, 0x7C, 0xC9, 0x14,
+                0xD5, 0xAF,
             ];
 
             // Check if GUID is all zeros (unsupported)
