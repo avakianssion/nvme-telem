@@ -30,4 +30,4 @@ publish:
       when: manual
     - when: never
   script:
-    - cargo publish --locked
+    - cargo publish --token ${CARGO_REGISTRY_TOKEN}
