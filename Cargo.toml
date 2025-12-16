@@ -1,13 +1,23 @@
 [package]
 name = "nvme-telem"
-version = "0.1.1"
-edition = "2021"          
+version = "0.1.2"
+edition = "2024"          
 license = "MIT"
 description = "NVMe SMART / telemetry collection for Linux"
 repository = "https://gitlab.com/avakianssion/nvme-telem"
+documentation = "https://docs.rs/crate/nvme-telem"
 readme = "README.md"
+categories = ["hardware-support"]
 keywords = ["nvme", "storage", "telemetry", "smart", "monitoring"]
+authors = ["Sion Avakian <avakianssion@gmail.com>"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-nvme-cli-sys = "0.1.5"
+nvme-cli-sys = { version = "0.1.5", optional = true }
+
+[features]
+default = ["nvme-cli-sys"]
+
+[package.metadata.docs.rs]
+# Build docs without the system dependency because docs break
+default-features = false

@@ -44,7 +44,7 @@ pub struct CtrlIdentity {
     /// NVMe specification version
     pub ver: u32,
 
-    /// NVM Subsystem NQN (ASCII) - TODO: parse and trim
+    /// NVM Subsystem NQN (ASCII)
     pub subnqn: String,
 
     /// FRU GUID / Field Replaceable Unit GUID
@@ -586,7 +586,7 @@ impl CtrlFabric {
 /// NVMe spec uses C char arrays for ASCII fields. This function converts
 /// to unsigned bytes, then parses as UTF-8 and trims whitespace/nulls.
 /// This helper function is required because serial number, model number,
-/// and firmawre revision are space padded.
+/// and firmware revision are space padded.
 fn parse_ascii_field(bytes: &[c_char]) -> String {
     // Convert c_char to u8 safely
     let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
@@ -607,7 +607,7 @@ fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
 }
 
 /// Extract raw nvme_id_ctrl using the Identify admin command.
-pub fn get_nvme_id_ctrl_raw(dev_path: &str) -> io::Result<nvme_id_ctrl> {
+pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let file = OpenOptions::new()
         .read(true)
         .write(true) // Admin permission required to send write commands
@@ -939,7 +939,7 @@ pub fn list_nvme_controllers() -> Vec<String> {
 /// - The device cannot be opened
 /// - The admin command fails
 /// - The NVMe controller returns a non-zero status
-pub fn get_nvme_smart_log_raw(dev_path: &str) -> io::Result<nvme_smart_log> {
+pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
     let file = OpenOptions::new()
         .read(true)
         .write(true) // Admin permission required to send write commands
