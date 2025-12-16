@@ -11,6 +11,8 @@ use std::os::unix::io::AsRawFd;
 ///
 /// This struct matches the C definition from nvme-cli exactly.
 /// Total size: 512 bytes as specified by the comment indices [511:496]
+/// packed because hardware's data format doesn't have padding, and we
+/// need our Rust struct to match it byte-for-byte.
 ///
 /// TODO - pull out into types.rs?
 /// Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.h
