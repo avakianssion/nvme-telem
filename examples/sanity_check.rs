@@ -30,7 +30,7 @@ fn main() {
 
         // Test 2: SMART Log
         print!("\nTest 2: Reading SMART log... ");
-        match get_nvme_smart_log_raw(&dev_path) {
+        match read_nvme_smart_log(&dev_path) {
             Ok(raw) => {
                 let smart = NvmeSmartLog::new(ctrl.clone(), &raw);
                 println!("✅ Success!");
@@ -51,7 +51,7 @@ fn main() {
 
         // Test 3: Controller Identity
         print!("\nTest 3: Reading controller identity... ");
-        match get_nvme_id_ctrl_raw(&dev_path) {
+        match read_nvme_id_ctrl(&dev_path) {
             Ok(raw) => {
                 println!("✅ Success!");
 
