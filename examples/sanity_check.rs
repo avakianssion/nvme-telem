@@ -1,6 +1,6 @@
 // examples/sanity_check.rs
-
 use nvme_telem::nvme::*;
+use nvme_telem::vendors::*;
 
 fn main() {
     println!("--- NVMe Sanity Check ---\n");
@@ -8,20 +8,18 @@ fn main() {
     // Test 1: List controllers
     println!("Test 1: Discovering NVMe controllers...");
     let controllers = list_nvme_controllers();
-
     if controllers.is_empty() {
         println!("❌ No NVMe controllers found!");
         println!("   This might be okay if you don't have NVMe hardware.");
         return;
     }
-
     println!(
         "✅ Found {} controller(s): {:?}\n",
         controllers.len(),
         controllers
     );
 
-    // Test 2-3: Try to read data from each controller
+    // Test 2-4: Try to read data from each controller
     for ctrl in controllers {
         let dev_path = format!("/dev/{}", ctrl);
         println!("\n{}", "=".repeat(60));
@@ -54,7 +52,6 @@ fn main() {
         match read_nvme_id_ctrl(&dev_path) {
             Ok(raw) => {
                 println!("✅ Success!");
-
                 let identity = CtrlIdentity::new(ctrl.clone(), &raw);
                 println!("\n  Identity:");
                 println!("    Vendor ID: 0x{:04x}", identity.vid);
@@ -85,6 +82,50 @@ fn main() {
             Err(e) => {
                 println!("❌ Failed: {}", e);
                 println!("   (This might require sudo/root access)");
+            }
+        }
+
+        // Test 4: OCP Extended SMART Log
+        print!("\nTest 4: Reading OCP extended SMART log (0xC0)... ");
+        match read_ocp_smart_log(&dev_path) {
+            Ok(raw) => {
+                let ocp = OcpSmartData::new(ctrl.clone(), &raw);
+                println!("✅ Success!");
+                println!(
+                    "  Physical Media Written: {}",
+                    ocp.physical_media_units_written
+                );
+                println!("  Physical Media Read: {}", ocp.physical_media_units_read);
+                println!("  Bad User NAND Blocks: {}", ocp.bad_user_nand_blocks_raw);
+                println!(
+                    "  Bad System NAND Blocks: {}",
+                    ocp.bad_system_nand_blocks_raw
+                );
+                println!("  Percent Free Blocks: {}%", ocp.percent_free_blocks);
+                println!(
+                    "  User Data Erase Count (Max): {}",
+                    ocp.user_data_erase_count_max
+                );
+                println!(
+                    "  User Data Erase Count (Min): {}",
+                    ocp.user_data_erase_count_min
+                );
+                println!("  NAND Avg Erase Count: {}", ocp.nand_avg_erase_count);
+                println!(
+                    "  Thermal Throttling Events: {}",
+                    ocp.thermal_throttling_events
+                );
+                println!("  PCIe Correctable Errors: {}", ocp.pcie_correctable_errors);
+                println!("  Incomplete Shutdowns: {}", ocp.incomplete_shutdowns);
+                println!("  Unaligned I/O: {}", ocp.unaligned_io);
+                println!("  Command Timeouts: {}", ocp.command_timeouts);
+                println!("  Total Media Dies: {}", ocp.total_media_dies);
+                println!("  Media Dies Offline: {}", ocp.media_dies_offline);
+                println!("  Log Page Version: {}", ocp.log_page_version);
+            }
+            Err(e) => {
+                println!("❌ Not available: {}", e);
+                println!("   (OCP extended SMART is vendor-specific - not all drives support it)");
             }
         }
     }
