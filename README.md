@@ -23,6 +23,8 @@ This library uses unsafe code to make ioctl calls to NVMe devices. All unsafe co
 ## Example
 
 ```shell
+$: sudo cargo build --example sanity_check
+$: sudo cargo run --example sanity_check
 
 --- NVMe Sanity Check ---
 
@@ -35,10 +37,10 @@ Testing: nvme0
 ============================================================
 
 Test 2: Reading SMART log... ✅ Success!
-  Temperature: 312 K
-  Power Cycles: 343
-  Power On Hours: 6922
-  Data Written: 1262227 (thousands of 512-byte units)
+  Temperature: xxx K
+  Power Cycles: xxx
+  Power On Hours: xxxxx
+  Data Written: xxxxxxx (thousands of 512-byte units)
   Critical Warning: 0
 
 Test 3: Reading controller identity... ✅ Success!
@@ -51,11 +53,11 @@ Test 3: Reading controller identity... ✅ Success!
     Firmware: 5xxxxx
 
   Capacity:
-    Total NVM: 1024209543168 bytes (1024 GB)
+    Total NVM: xxxxxxxxxxx bytes (xxx GB)
 
   Thermal:
-    Warning Temp: 357 K
-    Critical Temp: 358 K
+    Warning Temp: xxx K
+    Critical Temp: xxx K
 
   Limits:
     Max Data Transfer Size: 2^9 pages
