@@ -26,7 +26,7 @@ fn main() {
         println!("Testing: {}", ctrl);
         println!("{}", "=".repeat(60));
 
-        // Test 2: SMART Log
+        // Test 2: S.M.A.R.T. Log
         print!("\nTest 2: Reading SMART log... ");
         match read_nvme_smart_log(&dev_path) {
             Ok(raw) => {
