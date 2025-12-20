@@ -1,15 +1,15 @@
 //! # nvme-telem
 //!
-//! A Rust library for collecting NVMe telemetry and SMART data on Linux systems.
+//! A Rust library for collecting NVMe telemetry and S.M.A.R.T. data on Linux systems.
 //!
 //! This library provides a type-safe interface to NVMe device telemetry, including
-//! SMART/Health logs and detailed controller identification data. Data is organized
+//! S.M.A.R.T./Health logs and detailed controller identification data. Data is organized
 //! into logical categories (Identity, Capacity, Thermals, etc.) and supports
 //! serialization via serde.
 //!
 //! ## Features
 //!
-//! - **SMART Log Reading**: Temperature, power cycles, data written, and health metrics
+//! - **S.M.A.R.T. Log Reading**: Temperature, power cycles, data written, and health metrics
 //! - **Controller Identification**: Vendor info, model, serial number, firmware version
 //! - **Organized Data Model**: Separate structs for different metric categories
 //!

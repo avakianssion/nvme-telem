@@ -7,7 +7,7 @@ use std::io;
 use std::mem::{size_of, zeroed};
 use std::os::unix::io::AsRawFd;
 
-/// OCP SMART / Health Information Extended Log (Log ID 0xC0)
+/// OCP S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
 ///
 /// This struct matches the C definition from nvme-cli exactly.
 /// Total size: 512 bytes as specified by the comment indices [511:496]
@@ -218,7 +218,9 @@ pub struct OcpSmartExtendedLog {
 // Struct has to be exactly 512 bytes
 const _: () = assert!(size_of::<OcpSmartExtendedLog>() == 512);
 
-/// Parsed OCP SMART data with
+/// OCP  S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
+///
+/// Provides extended S.M.A.R.T. log
 #[derive(Debug, Serialize)]
 pub struct OcpSmartData {
     pub nvme_name: String,
@@ -404,7 +406,7 @@ impl OcpSmartData {
     }
 }
 
-/// /// Extract raw ocp_smart_log from an NVMe device.
+/// Extract raw ocp_smart_log from an NVMe device.
 ///
 /// # Arguments
 /// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
@@ -448,14 +450,14 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
             // Check if GUID is all zeros (unsupported)
             if log.log_page_guid == [0u8; 16] {
                 return Err(io::Error::other(
-                    "Device does not support OCP extended SMART log (invalid GUID)",
+                    "Device does not support OCP extended  S.M.A.R.T. log (invalid GUID)",
                 ));
             }
 
             // Check if GUID matches the expected OCP GUID
             if log.log_page_guid != OCP_GUID {
                 return Err(io::Error::other(format!(
-                    "Device does not support OCP extended SMART log (unexpected GUID: {:02X?})",
+                    "Device does not support OCP extended  S.M.A.R.T. log (unexpected GUID: {:02X?})",
                     log.log_page_guid
                 )));
             }
@@ -463,7 +465,7 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
             Ok(log)
         }
         Ok(status) => Err(io::Error::other(format!(
-            "OCP SMART log command failed, status={:#x}",
+            "OCP  S.M.A.R.T. log command failed, status={:#x}",
             status
         ))),
         Err(e) => Err(io::Error::other(e.to_string())),

@@ -646,9 +646,9 @@ pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     }
 }
 
-/// NVMe SMART/Health Information Log.
+/// NVMe S.M.A.R.T./Health Information Log.
 ///
-/// Provides SMART and general health information over the life of the controller.
+/// Provides S.M.A.R.T. and general health information over the life of the controller.
 /// Data is retained across power cycles unless otherwise specified.
 #[derive(Debug, Serialize)]
 pub struct NvmeSmartLog {
@@ -717,7 +717,7 @@ pub struct NvmeSmartLog {
 
     /// Host Read Commands (Bytes 79:64).
     ///
-    /// Number of SMART Host Read Commands completed by the controller.
+    /// Number of S.M.A.R.T. Host Read Commands completed by the controller.
     pub host_read_commands: u128,
 
     /// Host Write Commands (Bytes 95:80).
@@ -923,11 +923,11 @@ pub fn list_nvme_controllers() -> Vec<String> {
     names
 }
 
-/// Extract raw nvme_smart_log from an NVMe device.
+/// Extract raw nvme_S.M.A.R.T._log from an NVMe device.
 ///
 /// # Implementation Notes
 /// This function is heavily annotated because understanding the data extraction
-/// process can be complex. The SMART/Health Information log page (Log ID 02h)
+/// process can be complex. The S.M.A.R.T./Health Information log page (Log ID 02h)
 /// provides information over the life of the controller and is retained across
 /// power cycles unless otherwise specified.
 ///

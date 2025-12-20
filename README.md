@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/nvme-telem.svg)](https://crates.io/crates/nvme-telem)
 
-A Rust library for collecting NVMe telemetry and SMART data on Linux.
+A Rust library for collecting NVMe telemetry and S.M.A.R.T. data on Linux.
 
 ## Features
 
