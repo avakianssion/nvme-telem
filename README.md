@@ -19,3 +19,54 @@ A Rust library for collecting NVMe telemetry and S.M.A.R.T. data on Linux.
 ## Safety
 
 This library uses unsafe code to make ioctl calls to NVMe devices. All unsafe code is isolated in the device access functions.
+
+## Example
+
+```shell
+
+--- NVMe Sanity Check ---
+
+Test 1: Discovering NVMe controllers...
+✅ Found 1 controller(s): ["nvme0"]
+
+
+============================================================
+Testing: nvme0
+============================================================
+
+Test 2: Reading SMART log... ✅ Success!
+  Temperature: 312 K
+  Power Cycles: 343
+  Power On Hours: 6922
+  Data Written: 1262227 (thousands of 512-byte units)
+  Critical Warning: 0
+
+Test 3: Reading controller identity... ✅ Success!
+
+  Identity:
+    Vendor ID: 0x144d
+    Subsystem Vendor ID: 0x144d
+    Serial: Sxxxxxx
+    Model: SAMSUNG Mxxxxxx
+    Firmware: 5xxxxx
+
+  Capacity:
+    Total NVM: 1024209543168 bytes (1024 GB)
+
+  Thermal:
+    Warning Temp: 357 K
+    Critical Temp: 358 K
+
+  Limits:
+    Max Data Transfer Size: 2^9 pages
+    Number of Namespaces: 1
+    Max Outstanding Commands: 0
+
+Test 4: Reading OCP extended SMART log (0xC0)... ❌ Not available: Device does not support OCP extended  S.M.A.R.T. log (invalid GUID)
+   (OCP extended SMART is vendor-specific - not all drives support it)
+
+
+============================================================
+Sanity check complete!
+============================================================
+```
