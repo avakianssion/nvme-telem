@@ -1031,7 +1031,7 @@ pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
     let log_ptr = &mut log as *mut nvme_smart_log as u64;
     let log_len = size_of::<nvme_smart_log>() as u32;
 
-    let log_id: u8 = 0x02; // SMART/Health Information - Log Page Identifier 0x02
+    let log_id: u8 = 0x02; // S.M.A.R.T./Health Information - Log Page Identifier 0x02
     let numd: u32 = log_len / 4 - 1;
     let cdw10: u32 = (log_id as u32) | (numd << 16);
 
