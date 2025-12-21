@@ -1,4 +1,4 @@
-// src/collector/nvme.rs
+// src/nvme.rs
 
 use nvme_cli_sys::{
     nvme_admin_cmd, nvme_admin_opcode::nvme_admin_get_log_page,
@@ -10,6 +10,10 @@ use std::io;
 use std::mem::{size_of, zeroed};
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
+
+// =============================================================================
+// CONTROLLER IDENTITY STRUCTURES
+// =============================================================================
 
 /// Controller identity and basic information.
 ///
@@ -26,13 +30,13 @@ pub struct CtrlIdentity {
     /// PCI Subsystem Vendor ID
     pub ssvid: u16,
 
-    /// Serial Number (ASCII, space padded) - TODO: parse and trim
+    /// Serial Number (ASCII, space padded)
     pub serial_number: String,
 
-    /// Model Number (ASCII, space padded) - TODO: parse and trim
+    /// Model Number (ASCII, space padded)
     pub model_number: String,
 
-    /// Firmware Revision (ASCII, space padded) - TODO: parse and trim
+    /// Firmware Revision (ASCII, space padded)
     pub firmware_rev: String,
 
     /// IEEE OUI Identifier (3 bytes)
@@ -73,6 +77,10 @@ impl CtrlIdentity {
     }
 }
 
+// =============================================================================
+// CONTROLLER CAPACITY & STORAGE STRUCTURES
+// =============================================================================
+
 /// Controller capacity and storage information.
 ///
 /// Provides details about total NVM capacity, unallocated space, and maximum
@@ -106,6 +114,10 @@ impl CtrlCapacity {
         }
     }
 }
+
+// =============================================================================
+// CONTROLLER CAPABILITIES & FEATURES STRUCTURES
+// =============================================================================
 
 /// Controller capabilities and feature support.
 ///
@@ -193,6 +205,10 @@ impl CtrlCapabilities {
     }
 }
 
+// =============================================================================
+// CONTROLLER LIMITS & CONSTRAINTS STRUCTURES
+// =============================================================================
+
 /// Controller operational limits and constraints.
 ///
 /// Defines maximum transfer sizes, queue entry sizes, outstanding commands,
@@ -263,6 +279,10 @@ impl CtrlLimits {
     }
 }
 
+// =============================================================================
+// CONTROLLER THERMAL MANAGEMENT STRUCTURES
+// =============================================================================
+
 /// Controller thermal management configuration.
 ///
 /// Temperature thresholds and thermal management settings for the controller.
@@ -300,6 +320,10 @@ impl CtrlThermals {
     }
 }
 
+// =============================================================================
+// CONTROLLER FIRMWARE STRUCTURES
+// =============================================================================
+
 /// Controller firmware update configuration.
 ///
 /// Settings related to firmware updates including update capabilities,
@@ -330,6 +354,10 @@ impl CtrlFirmware {
     }
 }
 
+// =============================================================================
+// CONTROLLER POWER MANAGEMENT STRUCTURES
+// =============================================================================
+
 /// Controller power state descriptors.
 ///
 /// Contains all 32 power state descriptors defined by the NVMe specification
@@ -344,7 +372,7 @@ pub struct CtrlPowerStates {
 
     /// Autonomous Power State Transition Attributes
     pub apsta: u8,
-    // TOOD - figure out the rust syntax here :)
+    // TODO - figure out the rust syntax here :)
     // Power State Descriptors (all 32 entries from spec)
     //pub power_state_descriptors: [nvme_id_power_state; 32],
 }
@@ -359,6 +387,10 @@ impl CtrlPowerStates {
         }
     }
 }
+
+// =============================================================================
+// CONTROLLER HOST MEMORY BUFFER STRUCTURES
+// =============================================================================
 
 /// Controller host memory buffer configuration.
 ///
@@ -394,6 +426,10 @@ impl CtrlHostMemory {
     }
 }
 
+// =============================================================================
+// CONTROLLER ARBITRATION & QOS STRUCTURES
+// =============================================================================
+
 /// Controller arbitration and quality of service settings.
 ///
 /// Configuration for weighted round-robin arbitration.
@@ -414,6 +450,10 @@ impl CtrlArbitration {
         }
     }
 }
+
+// =============================================================================
+// CONTROLLER DIAGNOSTICS & SELF-TEST STRUCTURES
+// =============================================================================
 
 /// Controller diagnostic and self-test capabilities.
 ///
@@ -443,6 +483,10 @@ impl CtrlDiagnostics {
         }
     }
 }
+
+// =============================================================================
+// CONTROLLER ADVANCED FEATURES & TIMING STRUCTURES
+// =============================================================================
 
 /// Controller advanced features and timing.
 ///
@@ -510,6 +554,10 @@ impl CtrlAdvanced {
     }
 }
 
+// =============================================================================
+// CONTROLLER COMMAND SET STRUCTURES
+// =============================================================================
+
 /// Controller command set configuration.
 ///
 /// Vendor-specific command support and namespace write protection capabilities.
@@ -538,6 +586,10 @@ impl CtrlCommandSets {
         }
     }
 }
+
+// =============================================================================
+// CONTROLLER FABRIC (NVMe-oF) STRUCTURES
+// =============================================================================
 
 /// Controller fabric (NVMe-oF) configuration.
 ///
@@ -581,72 +633,11 @@ impl CtrlFabric {
     }
 }
 
-/// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
-///
-/// NVMe spec uses C char arrays for ASCII fields. This function converts
-/// to unsigned bytes, then parses as UTF-8 and trims whitespace/nulls.
-/// This helper function is required because serial number, model number,
-/// and firmware revision are space padded.
-fn parse_ascii_field(bytes: &[c_char]) -> String {
-    // Convert c_char to u8 safely
-    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
+// =============================================================================
+// LOG PAGE STRUCTURES
+// =============================================================================
 
-    String::from_utf8_lossy(&unsigned)
-        .trim_end_matches('\0')
-        .trim()
-        .to_string()
-}
-
-/// Convert [c_char; N] to [u8; N] for GUID fields.
-fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
-    let mut result = [0u8; 16];
-    for (i, &b) in bytes.iter().enumerate() {
-        result[i] = b as u8;
-    }
-    result
-}
-
-/// Extract raw nvme_id_ctrl using the Identify admin command.
-pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true) // Admin permission required to send write commands
-        .open(dev_path)?; // Path would be something like /dev/nvme0
-
-    let fd = file.as_raw_fd();
-
-    // Identify Controller payload is 4096 bytes based on the C bindings in the nvme_cli_sys crate.
-    let mut id: nvme_id_ctrl = unsafe { zeroed() };
-
-    let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
-    let id_len = size_of::<nvme_id_ctrl>() as u32;
-
-    let cns: u8 = 0x01;
-    let cntlid: u16 = 0x0000;
-    let cdw10: u32 = (cns as u32) | ((cntlid as u32) << 16);
-
-    let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
-    cmd.opcode = nvme_admin_identify as u8; // Identify (0x06)
-    cmd.nsid = 0x0000_0000;
-    cmd.addr = id_ptr;
-    cmd.data_len = id_len;
-    cmd.cdw10 = cdw10;
-    cmd.cdw11 = 0;
-    cmd.timeout_ms = 1000;
-
-    let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
-
-    match ret {
-        Ok(0) => Ok(id),
-        Ok(status) => Err(io::Error::other(format!(
-            "NVMe admin command failed, status={:#x}",
-            status
-        ))),
-        Err(e) => Err(io::Error::other(e.to_string())),
-    }
-}
-
-/// NVMe S.M.A.R.T./Health Information Log.
+/// NVMe S.M.A.R.T./Health Information Log (Log Page 0x02).
 ///
 /// Provides S.M.A.R.T. and general health information over the life of the controller.
 /// Data is retained across power cycles unless otherwise specified.
@@ -867,35 +858,35 @@ impl NvmeSmartLog {
             critical_comp_time: raw.critical_comp_time,
 
             temperature_sensor_1: match raw.temp_sensor[0] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_2: match raw.temp_sensor[1] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_3: match raw.temp_sensor[2] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_4: match raw.temp_sensor[3] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_5: match raw.temp_sensor[4] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_6: match raw.temp_sensor[5] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_7: match raw.temp_sensor[6] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
             temperature_sensor_8: match raw.temp_sensor[7] {
-                0 => None, // Sensor not present
+                0 => None,
                 v => Some(v),
             },
 
@@ -906,6 +897,38 @@ impl NvmeSmartLog {
         }
     }
 }
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
+///
+/// NVMe spec uses C char arrays for ASCII fields. This function converts
+/// to unsigned bytes, then parses as UTF-8 and trims whitespace/nulls.
+/// This helper function is required because serial number, model number,
+/// and firmware revision are space padded.
+fn parse_ascii_field(bytes: &[c_char]) -> String {
+    let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
+
+    String::from_utf8_lossy(&unsigned)
+        .trim_end_matches('\0')
+        .trim()
+        .to_string()
+}
+
+/// Convert [c_char; N] to [u8; N] for GUID fields.
+fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
+    let mut result = [0u8; 16];
+    for (i, &b) in bytes.iter().enumerate() {
+        result[i] = b as u8;
+    }
+    result
+}
+
+// =============================================================================
+// DISCOVERY
+// =============================================================================
 
 /// Discover NVMe controllers exposed on the server.
 ///
@@ -923,13 +946,68 @@ pub fn list_nvme_controllers() -> Vec<String> {
     names
 }
 
-/// Extract raw nvme_S.M.A.R.T._log from an NVMe device.
+// =============================================================================
+// IDENTIFY COMMANDS
+// =============================================================================
+
+/// Extract raw nvme_id_ctrl using the Identify admin command.
 ///
-/// # Implementation Notes
-/// This function is heavily annotated because understanding the data extraction
-/// process can be complex. The S.M.A.R.T./Health Information log page (Log ID 02h)
-/// provides information over the life of the controller and is retained across
-/// power cycles unless otherwise specified.
+/// # Arguments
+/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
+///
+/// # Errors
+/// Returns an error if:
+/// - The device cannot be opened
+/// - The admin command fails
+/// - The NVMe controller returns a non-zero status
+pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true) // Admin permission required
+        .open(dev_path)?;
+
+    let fd = file.as_raw_fd();
+
+    // Identify Controller payload is 4096 bytes based on the C bindings
+    let mut id: nvme_id_ctrl = unsafe { zeroed() };
+
+    let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
+    let id_len = size_of::<nvme_id_ctrl>() as u32;
+
+    let cns: u8 = 0x01;
+    let cntlid: u16 = 0x0000;
+    let cdw10: u32 = (cns as u32) | ((cntlid as u32) << 16);
+
+    let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
+    cmd.opcode = nvme_admin_identify as u8; // Identify (0x06)
+    cmd.nsid = 0x0000_0000;
+    cmd.addr = id_ptr;
+    cmd.data_len = id_len;
+    cmd.cdw10 = cdw10;
+    cmd.cdw11 = 0;
+    cmd.timeout_ms = 1000;
+
+    let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
+
+    match ret {
+        Ok(0) => Ok(id),
+        Ok(status) => Err(io::Error::other(format!(
+            "NVMe admin command failed, status={:#x}",
+            status
+        ))),
+        Err(e) => Err(io::Error::other(e.to_string())),
+    }
+}
+
+// =============================================================================
+// LOG PAGE COMMANDS
+// =============================================================================
+
+/// Extract raw nvme_smart_log from an NVMe device.
+///
+/// The S.M.A.R.T./Health Information log page (Log ID 0x02) provides information
+/// over the life of the controller and is retained across power cycles unless
+/// otherwise specified.
 ///
 /// # Arguments
 /// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
@@ -942,30 +1020,24 @@ pub fn list_nvme_controllers() -> Vec<String> {
 pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
     let file = OpenOptions::new()
         .read(true)
-        .write(true) // Admin permission required to send write commands
-        .open(dev_path)?; // Path would be something like /dev/nvme0
+        .write(true) // Admin permission required
+        .open(dev_path)?;
 
-    // Raw file descriptor for the kernel call. `file` is Rust's safe wrapper.
     let fd = file.as_raw_fd();
 
-    // Memory allocation for the response. nvme_smart_log is defined by the crate.
-    // We create a mutable variable and fill it with zeros to be replaced.
-    // This is unsafe because zero initialization might not be safe for all members.
+    // Allocate memory for the response
     let mut log: nvme_smart_log = unsafe { zeroed() };
 
-    // log_ptr is the address where the kernel will write the data
     let log_ptr = &mut log as *mut nvme_smart_log as u64;
-    // log_len is the allocated size
     let log_len = size_of::<nvme_smart_log>() as u32;
 
-    let log_id: u8 = 0x02; // SMART/Health Information - Log Page Identifier 02h
+    let log_id: u8 = 0x02; // SMART/Health Information - Log Page Identifier 0x02
     let numd: u32 = log_len / 4 - 1;
     let cdw10: u32 = (log_id as u32) | (numd << 16);
 
     let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
     cmd.opcode = nvme_admin_get_log_page as u8;
-    // If a namespace identifier other than 0h or FFFFFFFFh is specified by the host,
-    // the controller shall abort the command with a status code of Invalid Field in Command
+    // Per spec, namespace identifier must be 0x00000000 or 0xFFFFFFFF
     cmd.nsid = 0xFFFF_FFFF;
     cmd.addr = log_ptr;
     cmd.data_len = log_len;
