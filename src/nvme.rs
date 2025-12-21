@@ -12,7 +12,7 @@ use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 
 // =============================================================================
-// CONTROLLER IDENTITY STRUCTURES
+// CONTROLLER IDENTITY STRUCTS
 // =============================================================================
 
 /// Controller identity and basic information.
@@ -78,7 +78,7 @@ impl CtrlIdentity {
 }
 
 // =============================================================================
-// CONTROLLER CAPACITY & STORAGE STRUCTURES
+// CONTROLLER CAPACITY & STORAGE STRUCTS
 // =============================================================================
 
 /// Controller capacity and storage information.
@@ -116,7 +116,7 @@ impl CtrlCapacity {
 }
 
 // =============================================================================
-// CONTROLLER CAPABILITIES & FEATURES STRUCTURES
+// CONTROLLER CAPABILITIES & FEATURES STRUCTS
 // =============================================================================
 
 /// Controller capabilities and feature support.
@@ -206,7 +206,7 @@ impl CtrlCapabilities {
 }
 
 // =============================================================================
-// CONTROLLER LIMITS & CONSTRAINTS STRUCTURES
+// CONTROLLER LIMITS & CONSTRAINTS STRUCTS
 // =============================================================================
 
 /// Controller operational limits and constraints.
@@ -280,7 +280,7 @@ impl CtrlLimits {
 }
 
 // =============================================================================
-// CONTROLLER THERMAL MANAGEMENT STRUCTURES
+// CONTROLLER THERMAL MANAGEMENT STRUCTS
 // =============================================================================
 
 /// Controller thermal management configuration.
@@ -321,7 +321,7 @@ impl CtrlThermals {
 }
 
 // =============================================================================
-// CONTROLLER FIRMWARE STRUCTURES
+// CONTROLLER FIRMWARE STRUCTS
 // =============================================================================
 
 /// Controller firmware update configuration.
@@ -355,7 +355,7 @@ impl CtrlFirmware {
 }
 
 // =============================================================================
-// CONTROLLER POWER MANAGEMENT STRUCTURES
+// CONTROLLER POWER MANAGEMENT STRUCTS
 // =============================================================================
 
 /// Controller power state descriptors.
@@ -389,7 +389,7 @@ impl CtrlPowerStates {
 }
 
 // =============================================================================
-// CONTROLLER HOST MEMORY BUFFER STRUCTURES
+// CONTROLLER HOST MEMORY BUFFER STRUCTS
 // =============================================================================
 
 /// Controller host memory buffer configuration.
@@ -427,7 +427,7 @@ impl CtrlHostMemory {
 }
 
 // =============================================================================
-// CONTROLLER ARBITRATION & QOS STRUCTURES
+// CONTROLLER ARBITRATION & QOS STRUCTS
 // =============================================================================
 
 /// Controller arbitration and quality of service settings.
@@ -452,7 +452,7 @@ impl CtrlArbitration {
 }
 
 // =============================================================================
-// CONTROLLER DIAGNOSTICS & SELF-TEST STRUCTURES
+// CONTROLLER DIAGNOSTICS & SELF-TEST STRUCTS
 // =============================================================================
 
 /// Controller diagnostic and self-test capabilities.
@@ -485,7 +485,7 @@ impl CtrlDiagnostics {
 }
 
 // =============================================================================
-// CONTROLLER ADVANCED FEATURES & TIMING STRUCTURES
+// CONTROLLER ADVANCED FEATURES & TIMING STRUCTS
 // =============================================================================
 
 /// Controller advanced features and timing.
@@ -555,7 +555,7 @@ impl CtrlAdvanced {
 }
 
 // =============================================================================
-// CONTROLLER COMMAND SET STRUCTURES
+// CONTROLLER COMMAND SET STRUCTS
 // =============================================================================
 
 /// Controller command set configuration.
@@ -588,7 +588,7 @@ impl CtrlCommandSets {
 }
 
 // =============================================================================
-// CONTROLLER FABRIC (NVMe-oF) STRUCTURES
+// CONTROLLER FABRIC (NVMe-oF) STRUCTS
 // =============================================================================
 
 /// Controller fabric (NVMe-oF) configuration.
@@ -634,7 +634,7 @@ impl CtrlFabric {
 }
 
 // =============================================================================
-// LOG PAGE STRUCTURES
+// LOG PAGE STRUCTS
 // =============================================================================
 
 /// NVMe S.M.A.R.T./Health Information Log (Log Page 0x02).
