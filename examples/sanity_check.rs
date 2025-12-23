@@ -19,7 +19,7 @@ fn main() {
         controllers
     );
 
-    // Test 2-4: Try to read data from each controller
+    // Test 2-5: Try to read data from each controller
     for ctrl in controllers {
         let dev_path = format!("/dev/{}", ctrl);
         println!("\n{}", "=".repeat(60));
@@ -85,8 +85,38 @@ fn main() {
             }
         }
 
-        // Test 4: OCP Extended SMART Log
-        print!("\nTest 4: Reading OCP extended SMART log (0xC0)... ");
+        // Test 4: Error Log
+        print!("\nTest 4: Reading error log (0x01)... ");
+        match read_error_log(&dev_path) {
+            Ok(error_log) => {
+                println!("✅ Success!");
+                if error_log.entries.is_empty() {
+                    println!("No errors recorded - healthy drive!");
+                } else {
+                    println!("  Found {} error(s):", error_log.entries.len());
+                    // Show first 5 errors
+                    for (i, entry) in error_log.entries.iter().take(5).enumerate() {
+                        println!("\n  Error {}:", i + 1);
+                        println!("    Error Count: {}", entry.error_count);
+                        println!("    Submission Queue ID: {}", entry.submission_queue_id);
+                        println!("    Command ID: {}", entry.command_id);
+                        println!("    Status Field: {:#x}", entry.status_field);
+                        println!("    LBA: {:#x}", entry.lba);
+                        println!("    Namespace ID: {}", entry.namespace_id);
+                    }
+                    if error_log.entries.len() > 5 {
+                        println!("\n  ... and {} more error(s)", error_log.entries.len() - 5);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("❌ Failed: {}", e);
+                println!("   (This might require sudo/root access)");
+            }
+        }
+
+        // Test 5: OCP Extended SMART Log
+        print!("\nTest 5: Reading OCP extended SMART log (0xC0)... ");
         match read_ocp_smart_log(&dev_path) {
             Ok(raw) => {
                 let ocp = OcpSmartData::new(ctrl.clone(), &raw);
