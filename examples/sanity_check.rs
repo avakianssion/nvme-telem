@@ -91,7 +91,7 @@ fn main() {
             Ok(error_log) => {
                 println!("✅ Success!");
                 if error_log.entries.is_empty() {
-                    println!("  No errors recorded - healthy drive! 🎉");
+                    println!("No errors recorded - healthy drive!");
                 } else {
                     println!("  Found {} error(s):", error_log.entries.len());
                     // Show first 5 errors
