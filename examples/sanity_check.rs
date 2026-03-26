@@ -9,12 +9,12 @@ fn main() {
     println!("Test 1: Discovering NVMe controllers...");
     let controllers = list_nvme_controllers();
     if controllers.is_empty() {
-        println!("❌ No NVMe controllers found!");
-        println!("   This might be okay if you don't have NVMe hardware.");
+        println!("[FAIL] No NVMe controllers found!");
+        println!("       This might be okay if you don't have NVMe hardware.");
         return;
     }
     println!(
-        "✅ Found {} controller(s): {:?}\n",
+        "[OK] Found {} controller(s): {:?}\n",
         controllers.len(),
         controllers
     );
@@ -31,7 +31,7 @@ fn main() {
         match read_nvme_smart_log(&dev_path) {
             Ok(raw) => {
                 let smart = NvmeSmartLog::new(ctrl.clone(), &raw);
-                println!("✅ Success!");
+                println!("[OK] Success!");
                 println!("  Temperature: {:?} K", smart.temperature);
                 println!("  Power Cycles: {:?}", smart.power_cycles);
                 println!("  Power On Hours: {:?}", smart.power_on_hours);
@@ -42,8 +42,8 @@ fn main() {
                 println!("  Critical Warning: {:?}", smart.critical_warning);
             }
             Err(e) => {
-                println!("❌ Failed: {}", e);
-                println!("   (This might require sudo/root access)");
+                println!("[FAIL] Failed: {}", e);
+                println!("       (This might require sudo/root access)");
             }
         }
 
@@ -51,7 +51,7 @@ fn main() {
         print!("\nTest 3: Reading controller identity... ");
         match read_nvme_id_ctrl(&dev_path) {
             Ok(raw) => {
-                println!("✅ Success!");
+                println!("[OK] Success!");
                 let identity = CtrlIdentity::new(ctrl.clone(), &raw);
                 println!("\n  Identity:");
                 println!("    Vendor ID: 0x{:04x}", identity.vid);
@@ -80,8 +80,8 @@ fn main() {
                 println!("    Max Outstanding Commands: {}", limits.maxcmd);
             }
             Err(e) => {
-                println!("❌ Failed: {}", e);
-                println!("   (This might require sudo/root access)");
+                println!("[FAIL] Failed: {}", e);
+                println!("       (This might require sudo/root access)");
             }
         }
 
@@ -89,9 +89,9 @@ fn main() {
         print!("\nTest 4: Reading error log (0x01)... ");
         match read_error_log(&dev_path) {
             Ok(error_log) => {
-                println!("✅ Success!");
+                println!("[OK] Success!");
                 if error_log.entries.is_empty() {
-                    println!("No errors recorded - healthy drive!");
+                    println!("  No errors recorded - healthy drive!");
                 } else {
                     println!("  Found {} error(s):", error_log.entries.len());
                     // Show first 5 errors
@@ -110,8 +110,8 @@ fn main() {
                 }
             }
             Err(e) => {
-                println!("❌ Failed: {}", e);
-                println!("   (This might require sudo/root access)");
+                println!("[FAIL] Failed: {}", e);
+                println!("       (This might require sudo/root access)");
             }
         }
 
@@ -120,7 +120,7 @@ fn main() {
         match read_ocp_smart_log(&dev_path) {
             Ok(raw) => {
                 let ocp = OcpSmartData::new(ctrl.clone(), &raw);
-                println!("✅ Success!");
+                println!("[OK] Success!");
                 println!(
                     "  Physical Media Written: {}",
                     ocp.physical_media_units_written
@@ -154,8 +154,8 @@ fn main() {
                 println!("  Log Page Version: {}", ocp.log_page_version);
             }
             Err(e) => {
-                println!("❌ Not available: {}", e);
-                println!("   (OCP extended SMART is vendor-specific - not all drives support it)");
+                println!("[FAIL] Not available: {}", e);
+                println!("       (OCP extended SMART is vendor-specific - not all drives support it)");
             }
         }
     }
