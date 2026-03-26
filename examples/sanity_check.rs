@@ -155,7 +155,9 @@ fn main() {
             }
             Err(e) => {
                 println!("[FAIL] Not available: {}", e);
-                println!("       (OCP extended SMART is vendor-specific - not all drives support it)");
+                println!(
+                    "       (OCP extended SMART is vendor-specific - not all drives support it)"
+                );
             }
         }
     }
