@@ -1003,11 +1003,16 @@ impl ErrorEntry {
 #[derive(Debug, Serialize)]
 pub struct NvmeErrorLog {
     pub nvme_name: String,
+    pub serial_number: String,
     pub entries: Vec<ErrorEntry>,
 }
 
 impl NvmeErrorLog {
-    pub fn new(nvme_name: String, raw_entries: Vec<nvme_error_log_page>) -> Self {
+    pub fn new(
+        nvme_name: String,
+        serial_number: String,
+        raw_entries: Vec<nvme_error_log_page>,
+    ) -> Self {
         // Filter out unpopulated entries (error_count == 0)
         let entries = raw_entries
             .iter()
@@ -1015,7 +1020,11 @@ impl NvmeErrorLog {
             .map(ErrorEntry::new)
             .collect();
 
-        Self { nvme_name, entries }
+        Self {
+            nvme_name,
+            serial_number,
+            entries,
+        }
     }
 }
 
@@ -1248,10 +1257,11 @@ pub fn read_error_log(dev_path: &str) -> io::Result<NvmeErrorLog> {
     // Query controller to get ELPE
     let id_ctrl = read_nvme_id_ctrl(dev_path)?;
     let diag = CtrlDiagnostics::new(nvme_name.clone(), &id_ctrl);
+    let serial_number = parse_ascii_field(&id_ctrl.sn);
 
     // Calculate number of entries (ELPE is 0-based)
     let max_entries = (diag.elpe + 1) as u16;
 
     let raw_entries = read_error_log_raw(dev_path, max_entries)?;
-    Ok(NvmeErrorLog::new(nvme_name, raw_entries))
+    Ok(NvmeErrorLog::new(nvme_name, serial_number, raw_entries))
 }
