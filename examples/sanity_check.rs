@@ -1,13 +1,13 @@
 // examples/sanity_check.rs
-use nvme_telem::nvme::*;
-use nvme_telem::vendors::*;
+use nvme_telem::nvme;
+use nvme_telem::vendors;
 
 fn main() {
     println!("--- NVMe Sanity Check ---\n");
 
     // Test 1: List controllers
     println!("Test 1: Discovering NVMe controllers...");
-    let controllers = list_nvme_controllers();
+    let controllers = nvme::list_nvme_controllers();
     if controllers.is_empty() {
         println!("[FAIL] No NVMe controllers found!");
         println!("       This might be okay if you don't have NVMe hardware.");
@@ -28,18 +28,21 @@ fn main() {
 
         // Test 2: S.M.A.R.T. Log
         print!("\nTest 2: Reading SMART log... ");
-        match read_nvme_smart_log(&dev_path) {
-            Ok(raw) => {
-                let smart = NvmeSmartLog::new(ctrl.clone(), &raw);
+        match nvme::get_smart_log(&dev_path) {
+            Ok(smart) => {
                 println!("[OK] Success!");
-                println!("  Temperature: {:?} K", smart.temperature);
-                println!("  Power Cycles: {:?}", smart.power_cycles);
-                println!("  Power On Hours: {:?}", smart.power_on_hours);
                 println!(
-                    "  Data Written: {:?} (thousands of 512-byte units)",
+                    "  Device: {} (S/N: {})",
+                    smart.nvme_name, smart.serial_number
+                );
+                println!("  Temperature: {} K", smart.temperature);
+                println!("  Power Cycles: {}", smart.power_cycles);
+                println!("  Power On Hours: {}", smart.power_on_hours);
+                println!(
+                    "  Data Written: {} (thousands of 512-byte units)",
                     smart.data_units_written
                 );
-                println!("  Critical Warning: {:?}", smart.critical_warning);
+                println!("  Critical Warning: {:#x}", smart.critical_warning);
             }
             Err(e) => {
                 println!("[FAIL] Failed: {}", e);
@@ -49,35 +52,15 @@ fn main() {
 
         // Test 3: Controller Identity
         print!("\nTest 3: Reading controller identity... ");
-        match read_nvme_id_ctrl(&dev_path) {
-            Ok(raw) => {
+        match nvme::get_controller_identity(&dev_path) {
+            Ok(identity) => {
                 println!("[OK] Success!");
-                let identity = CtrlIdentity::new(ctrl.clone(), &raw);
                 println!("\n  Identity:");
                 println!("    Vendor ID: 0x{:04x}", identity.vid);
                 println!("    Subsystem Vendor ID: 0x{:04x}", identity.ssvid);
                 println!("    Serial: {}", identity.serial_number);
                 println!("    Model: {}", identity.model_number);
                 println!("    Firmware: {}", identity.firmware_rev);
-
-                let capacity = CtrlCapacity::new(ctrl.clone(), &raw);
-                println!("\n  Capacity:");
-                println!(
-                    "    Total NVM: {} bytes ({} GB)",
-                    capacity.total_nvm_bytes,
-                    capacity.total_nvm_bytes / 1_000_000_000
-                );
-
-                let thermals = CtrlThermals::new(ctrl.clone(), &raw);
-                println!("\n  Thermal:");
-                println!("    Warning Temp: {} K", thermals.wctemp_k);
-                println!("    Critical Temp: {} K", thermals.cctemp_k);
-
-                let limits = CtrlLimits::new(ctrl.clone(), &raw);
-                println!("\n  Limits:");
-                println!("    Max Data Transfer Size: 2^{} pages", limits.mdts);
-                println!("    Number of Namespaces: {}", limits.nn);
-                println!("    Max Outstanding Commands: {}", limits.maxcmd);
             }
             Err(e) => {
                 println!("[FAIL] Failed: {}", e);
@@ -87,9 +70,13 @@ fn main() {
 
         // Test 4: Error Log
         print!("\nTest 4: Reading error log (0x01)... ");
-        match read_error_log(&dev_path) {
+        match nvme::get_error_log(&dev_path) {
             Ok(error_log) => {
                 println!("[OK] Success!");
+                println!(
+                    "  Device: {} (S/N: {})",
+                    error_log.nvme_name, error_log.serial_number
+                );
                 if error_log.entries.is_empty() {
                     println!("  No errors recorded - healthy drive!");
                 } else {
@@ -117,10 +104,11 @@ fn main() {
 
         // Test 5: OCP Extended SMART Log
         print!("\nTest 5: Reading OCP extended SMART log (0xC0)... ");
-        match read_ocp_smart_log(&dev_path) {
+        match vendors::read_ocp_smart_log(&dev_path) {
             Ok(raw) => {
-                let ocp = OcpSmartData::new(ctrl.clone(), &raw);
+                let ocp = vendors::OcpSmartData::new(ctrl.clone(), &raw);
                 println!("[OK] Success!");
+                println!("  Device: {}", ocp.nvme_name);
                 println!(
                     "  Physical Media Written: {}",
                     ocp.physical_media_units_written
@@ -166,3 +154,4 @@ fn main() {
     println!("Sanity check complete!");
     println!("{}", "=".repeat(60));
 }
+

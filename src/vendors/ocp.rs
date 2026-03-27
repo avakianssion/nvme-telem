@@ -1,4 +1,25 @@
-// src/vendor.rs
+//! OCP NVMe extensions.
+//!
+//! The OCP NVMe specification defines extended SMART/Health information log pages
+//! that provide additional telemetry beyond the standard NVMe SMART log. This includes
+//! detailed wear metrics, error statistics, and vendor-specific diagnostic data.
+//!
+//! # OCP Extended SMART Log (0xC0)
+//!
+//! This log page provides comprehensive drive health metrics including:
+//! - Physical media units read/written
+//! - Bad NAND block counts (user and system areas)
+//! - Detailed error statistics (XOR recovery, ECC errors, E2E errors)
+//! - Wear leveling metrics (erase counts, endurance estimates)
+//! - Thermal management data
+//! - PCIe error counts
+//! - Power loss protection statistics
+//!
+//! # Vendor Support
+//!
+//! Not all NVMe drives support OCP extended logs. This implementation validates
+//! the OCP GUID to ensure the returned data is genuine OCP telemetry and not
+//! garbage data from an unsupported device.
 
 use nvme_cli_sys::{nvme_admin_cmd, nvme_admin_opcode::nvme_admin_get_log_page};
 use serde::Serialize;
@@ -9,12 +30,10 @@ use std::os::unix::io::AsRawFd;
 
 /// OCP S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
 ///
-/// This struct matches the C definition from nvme-cli exactly.
-/// Total size: 512 bytes as specified by the comment indices [511:496]
-/// packed because hardware's data format doesn't have padding, and we
-/// need our Rust struct to match it byte-for-byte.
+/// Raw C-compatible structure matching the OCP specification exactly.
+/// This struct is 512 bytes and uses packed representation to match
+/// the hardware data format byte-for-byte without padding.
 ///
-/// TODO - pull out into types.rs?
 /// Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.h
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
@@ -215,14 +234,16 @@ pub struct OcpSmartExtendedLog {
     pub log_page_guid: [u8; 16],
 }
 
-// Struct has to be exactly 512 bytes
+// Compile-time assertion: struct must be exactly 512 bytes per OCP spec
 const _: () = assert!(size_of::<OcpSmartExtendedLog>() == 512);
 
-/// OCP  S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
+/// OCP S.M.A.R.T. / Health Information Extended Log.
 ///
-/// Provides extended S.M.A.R.T. log
+/// Parsed and organized OCP telemetry data with proper Rust types.
+/// This struct provides a type-safe interface to the raw OCP log data.
 #[derive(Debug, Serialize)]
 pub struct OcpSmartData {
+    /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
     // Media units
@@ -308,6 +329,7 @@ pub struct OcpSmartData {
 }
 
 impl OcpSmartData {
+    /// Create a new OcpSmartData from raw OCP log data.
     pub fn new(nvme_name: String, raw: &OcpSmartExtendedLog) -> Self {
         // Convert 16-byte arrays to u128
         let media_written = u128::from_le_bytes(raw.physical_media_units_written);
@@ -406,16 +428,29 @@ impl OcpSmartData {
     }
 }
 
-/// Extract raw ocp_smart_log from an NVMe device.
+/// Read OCP Extended SMART log from an NVMe device.
 ///
 /// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
+///
+/// * `dev_path` - Path to the NVMe character device (e.g., `"/dev/nvme0"`)
+///
+/// # Returns
+///
+/// Returns the raw OCP SMART Extended Log structure.
 ///
 /// # Errors
-/// Returns an error if:
-/// - The device cannot be opened
-/// - The admin command fails
-/// - The NVMe controller returns a non-zero status
+///
+/// This function will return an error if:
+/// - The device path does not exist or cannot be opened
+/// - The process lacks sufficient permissions (requires root/sudo)
+/// - The NVMe controller does not respond or returns an error status
+/// - The device does not support OCP extended SMART log (invalid or mismatched GUID)
+///
+/// # Note
+///
+/// Not all NVMe drives support the OCP extended SMART log. This function validates
+/// the OCP GUID in the returned data to ensure the device genuinely supports this
+/// feature and is not returning garbage data.
 pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
     let file = OpenOptions::new().read(true).write(true).open(dev_path)?;
     let fd = file.as_raw_fd();
@@ -439,9 +474,8 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
     let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
     match ret {
         Ok(0) => {
-            // Not all devices will support the ocp command - If we don't validate here, we might return garbage
-            // Validate OCP GUID
-            // Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.c(scao_guid)
+            // Validate OCP GUID to ensure device actually supports this log page
+            // Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.c
             const OCP_GUID: [u8; 16] = [
                 0xC5, 0xAF, 0x10, 0x28, 0xEA, 0xBF, 0xF2, 0xA4, 0x9C, 0x4F, 0x6F, 0x7C, 0xC9, 0x14,
                 0xD5, 0xAF,
@@ -450,14 +484,14 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
             // Check if GUID is all zeros (unsupported)
             if log.log_page_guid == [0u8; 16] {
                 return Err(io::Error::other(
-                    "Device does not support OCP extended  S.M.A.R.T. log (invalid GUID)",
+                    "Device does not support OCP extended SMART log (invalid GUID)",
                 ));
             }
 
             // Check if GUID matches the expected OCP GUID
             if log.log_page_guid != OCP_GUID {
                 return Err(io::Error::other(format!(
-                    "Device does not support OCP extended  S.M.A.R.T. log (unexpected GUID: {:02X?})",
+                    "Device does not support OCP extended SMART log (unexpected GUID: {:02X?})",
                     log.log_page_guid
                 )));
             }
@@ -465,9 +499,10 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
             Ok(log)
         }
         Ok(status) => Err(io::Error::other(format!(
-            "OCP  S.M.A.R.T. log command failed, status={:#x}",
+            "OCP SMART log command failed, status={:#x}",
             status
         ))),
         Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
+
