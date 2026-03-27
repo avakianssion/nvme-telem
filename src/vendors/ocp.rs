@@ -505,4 +505,3 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
         Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
-

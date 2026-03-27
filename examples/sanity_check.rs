@@ -154,4 +154,3 @@ fn main() {
     println!("Sanity check complete!");
     println!("{}", "=".repeat(60));
 }
-

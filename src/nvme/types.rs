@@ -1006,4 +1006,3 @@ pub fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
     }
     result
 }
-
