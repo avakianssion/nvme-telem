@@ -36,20 +36,6 @@ check-version:
         echo "Please bump the version in Cargo.toml before merging"
         exit 1
       fi
-    
-    # Check if version tag exists in git
-    - git fetch --tags
-    - |
-      if git tag -l | grep -q "^v$CURRENT_VERSION$"; then
-        echo "ERROR: Version v$CURRENT_VERSION already tagged in git"
-        echo "Please bump the version in Cargo.toml before merging"
-        exit 1
-      fi
-    
-    - echo "Version $CURRENT_VERSION is new - OK to publish!"
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 publish:
   stage: publish
