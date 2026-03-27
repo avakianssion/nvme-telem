@@ -1,6 +1,6 @@
 image: rockylinux:9
 
-stages: [lint, build, publish]
+stages: [lint, build, version-check, publish]
 
 before_script:
   - dnf install -y clang-devel llvm-devel
@@ -22,6 +22,20 @@ build:
   stage: build
   script:
     - cargo build
+
+check-version:
+  stage: version-check
+  script:
+    - CURRENT_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+    - echo "Checking version $CURRENT_VERSION"
+    
+    # Check if version already exists on crates.io
+    - |
+      if cargo search nvme-telem | grep -q "nvme-telem = \"$CURRENT_VERSION\""; then
+        echo "ERROR: Version $CURRENT_VERSION already published on crates.io"
+        echo "Please bump the version in Cargo.toml before merging"
+        exit 1
+      fi
 
 publish:
   stage: publish
