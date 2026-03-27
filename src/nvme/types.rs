@@ -1,15 +1,12 @@
-// src/nvme.rs
+// src/nvme/types.rs
 
-use nvme_cli_sys::{
-    nvme_admin_cmd, nvme_admin_opcode::nvme_admin_get_log_page,
-    nvme_admin_opcode::nvme_admin_identify, nvme_error_log_page, nvme_id_ctrl, nvme_smart_log,
-};
+use nvme_cli_sys::{nvme_error_log_page, nvme_id_ctrl, nvme_smart_log};
 use serde::Serialize;
-use std::fs::{self, OpenOptions};
 use std::io;
-use std::mem::{size_of, zeroed};
 use std::os::raw::c_char;
-use std::os::unix::io::AsRawFd;
+
+/// Result type for NVMe operations.
+pub type Result<T> = io::Result<T>;
 
 // =============================================================================
 // CONTROLLER IDENTITY STRUCTS
@@ -646,6 +643,9 @@ pub struct NvmeSmartLog {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Critical Warning bitmask (Byte 00):
     /// - Bit 0: Available spare below threshold
     /// - Bit 1: Temperature threshold condition
@@ -831,10 +831,10 @@ pub struct NvmeSmartLog {
 }
 
 impl NvmeSmartLog {
-    /// Create a new NvmeSmartLog from raw nvme_smart_log data.
-    pub fn new(nvme_name: String, raw: &nvme_smart_log) -> Self {
+    pub fn new(nvme_name: String, serial_number: String, raw: &nvme_smart_log) -> Self {
         Self {
             nvme_name,
+            serial_number,
 
             critical_warning: raw.critical_warning,
             temperature: u16::from_le_bytes([raw.temperature[0], raw.temperature[1]]),
@@ -905,78 +905,37 @@ impl NvmeSmartLog {
 /// with the oldest entries being overwritten when the buffer is full.
 #[derive(Debug, Serialize, PartialEq)]
 pub struct ErrorEntry {
-    /// Error Count: a 64-bit incrementing error count, indicating a unique
-    /// identifier for this error.
-    ///
-    /// The error count starts at 1h, is incremented for each unique error
-    /// log entry, and is retained across power off conditions. A value of
-    /// 0h indicates an invalid entry (used when there are lost entries or
-    /// fewer errors than the maximum number of entries the controller supports).
-    /// If the value reaches FFFFFFFFFFFFFFFFh, it rolls over to 1h when incremented.
+    /// Error Count
     pub error_count: u64,
 
-    /// Submission Queue ID: indicates the Submission Queue Identifier of the
-    /// command that the error information is associated with.
-    ///
-    /// If the error is not specific to a particular command, this field is
-    /// set to FFFFh.
+    /// Submission Queue ID
     pub submission_queue_id: u16,
 
-    /// Command ID: indicates the Command Identifier of the command that the
-    /// error is associated with.
-    ///
-    /// If the error is not specific to a particular command, this field is
-    /// set to FFFFh.
+    /// Command ID
     pub command_id: u16,
 
-    /// Status Field: indicates the Status Field for the command that completed.
-    ///
-    /// Bits 15-1: Status code and type. If the error is not specific to a
-    /// particular command, this field reports the most applicable status value.
-    /// Bit 0: Phase Tag that may have been posted for the command.
+    /// Status Field
     pub status_field: u16,
 
-    /// Parameter Error Location: indicates the byte and bit of the command
-    /// parameter that the error is associated with, if applicable.
-    ///
-    /// If the parameter spans multiple bytes or bits, this location indicates
-    /// the first byte and bit of the parameter.
-    /// - Bits 10-8: Bit in command that contained the error (valid values: 0-7)
-    /// - Bits 7-0: Byte in command that contained the error (valid values: 0-63)
+    /// Parameter Error Location
     pub parameter_error_location: u16,
 
-    /// LBA: indicates the first Logical Block Address that experienced the
-    /// error condition, if applicable.
+    /// LBA
     pub lba: u64,
 
-    /// Namespace ID: indicates the NSID of the namespace that the error is
-    /// associated with, if applicable.
+    /// Namespace ID
     pub namespace_id: u32,
 
-    /// Vendor Specific Information Available: If there is additional vendor
-    /// specific error information available, this field provides the log page
-    /// identifier associated with that page.
-    ///
-    /// A value of 0h indicates that no additional information is available.
-    /// Valid values are in the range of 80h to FFh.
+    /// Vendor Specific Information Available
     pub vendor_specific: u8,
 
-    /// Transport Type (TRTYPE): indicates the Transport Type of the transport
-    /// associated with the error.
-    ///
-    /// The values in this field are the same as the TRTYPE values in the
-    /// Discovery Log Page Entry. If the error is not transport related, this
-    /// field is cleared to 0h. If the error is transport related, this field
-    /// is set to the type of the transport.
+    /// Transport Type
     pub transport_type: u8,
 
-    /// Command Specific Information: contains command specific information.
-    ///
-    /// If used, the command definition specifies the information returned.
+    /// Command Specific Information
     pub command_specific: u64,
 
-    /// Transport Type Specific Information: contains information specific
-    /// to the transport type indicated in the transport_type field.
+    /// Transport Type Specific Information
     pub transport_type_specific_info: u16,
 }
 
@@ -999,37 +958,38 @@ impl ErrorEntry {
 }
 
 /// Error Information Log (Log Page 0x01).
-/// This struct is to be used by user to extract ErrorEntry
 #[derive(Debug, Serialize)]
 pub struct NvmeErrorLog {
     pub nvme_name: String,
+    pub serial_number: String,
     pub entries: Vec<ErrorEntry>,
 }
 
 impl NvmeErrorLog {
-    pub fn new(nvme_name: String, raw_entries: Vec<nvme_error_log_page>) -> Self {
-        // Filter out unpopulated entries (error_count == 0)
+    pub fn new(
+        nvme_name: String,
+        serial_number: String,
+        raw_entries: Vec<nvme_error_log_page>,
+    ) -> Self {
         let entries = raw_entries
             .iter()
             .filter(|e| e.error_count != 0)
             .map(ErrorEntry::new)
             .collect();
 
-        Self { nvme_name, entries }
+        Self {
+            nvme_name,
+            serial_number,
+            entries,
+        }
     }
 }
-
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
 
 /// Parse ASCII field from raw c_char byte array, trimming spaces and nulls.
 ///
 /// NVMe spec uses C char arrays for ASCII fields. This function converts
 /// to unsigned bytes, then parses as UTF-8 and trims whitespace/nulls.
-/// This helper function is required because serial number, model number,
-/// and firmware revision are space padded.
-fn parse_ascii_field(bytes: &[c_char]) -> String {
+pub fn parse_ascii_field(bytes: &[c_char]) -> String {
     let unsigned: Vec<u8> = bytes.iter().map(|&b| b as u8).collect();
 
     String::from_utf8_lossy(&unsigned)
@@ -1039,219 +999,10 @@ fn parse_ascii_field(bytes: &[c_char]) -> String {
 }
 
 /// Convert [c_char; N] to [u8; N] for GUID fields.
-fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
+pub fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
     let mut result = [0u8; 16];
     for (i, &b) in bytes.iter().enumerate() {
         result[i] = b as u8;
     }
     result
-}
-
-// =============================================================================
-// DISCOVERY
-// =============================================================================
-
-/// Discover NVMe controllers exposed on the server.
-///
-/// Returns a list of NVMe controller names found in /sys/class/nvme.
-pub fn list_nvme_controllers() -> Vec<String> {
-    let mut names = Vec::new();
-
-    if let Ok(entries) = fs::read_dir("/sys/class/nvme") {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            names.push(name);
-        }
-    }
-
-    names
-}
-
-// =============================================================================
-// IDENTIFY COMMANDS
-// =============================================================================
-
-/// Extract raw nvme_id_ctrl using the Identify admin command.
-///
-/// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
-///
-/// # Errors
-/// Returns an error if:
-/// - The device cannot be opened
-/// - The admin command fails
-/// - The NVMe controller returns a non-zero status
-pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true) // Admin permission required
-        .open(dev_path)?;
-
-    let fd = file.as_raw_fd();
-
-    // Identify Controller payload is 4096 bytes based on the C bindings
-    let mut id: nvme_id_ctrl = unsafe { zeroed() };
-
-    let id_ptr = &mut id as *mut nvme_id_ctrl as u64;
-    let id_len = size_of::<nvme_id_ctrl>() as u32;
-
-    let cns: u8 = 0x01;
-    let cntlid: u16 = 0x0000;
-    let cdw10: u32 = (cns as u32) | ((cntlid as u32) << 16);
-
-    let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
-    cmd.opcode = nvme_admin_identify as u8; // Identify (0x06)
-    cmd.nsid = 0x0000_0000;
-    cmd.addr = id_ptr;
-    cmd.data_len = id_len;
-    cmd.cdw10 = cdw10;
-    cmd.cdw11 = 0;
-    cmd.timeout_ms = 1000;
-
-    let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
-
-    match ret {
-        Ok(0) => Ok(id),
-        Ok(status) => Err(io::Error::other(format!(
-            "NVMe admin command failed, status={:#x}",
-            status
-        ))),
-        Err(e) => Err(io::Error::other(e.to_string())),
-    }
-}
-
-// =============================================================================
-// LOG PAGE COMMANDS
-// =============================================================================
-
-/// Extract raw nvme_smart_log from an NVMe device.
-///
-/// The S.M.A.R.T./Health Information log page (Log ID 0x02) provides information
-/// over the life of the controller and is retained across power cycles unless
-/// otherwise specified.
-///
-/// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
-///
-/// # Errors
-/// Returns an error if:
-/// - The device cannot be opened
-/// - The admin command fails
-/// - The NVMe controller returns a non-zero status
-pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true) // Admin permission required
-        .open(dev_path)?;
-
-    let fd = file.as_raw_fd();
-
-    // Allocate memory for the response
-    let mut log: nvme_smart_log = unsafe { zeroed() };
-
-    let log_ptr = &mut log as *mut nvme_smart_log as u64;
-    let log_len = size_of::<nvme_smart_log>() as u32;
-
-    let log_id: u8 = 0x02; // S.M.A.R.T./Health Information - Log Page Identifier 0x02
-    let numd: u32 = log_len / 4 - 1;
-    let cdw10: u32 = (log_id as u32) | (numd << 16);
-
-    let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
-    cmd.opcode = nvme_admin_get_log_page as u8;
-    // Per spec, namespace identifier must be 0x00000000 or 0xFFFFFFFF
-    cmd.nsid = 0xFFFF_FFFF;
-    cmd.addr = log_ptr;
-    cmd.data_len = log_len;
-    cmd.cdw10 = cdw10;
-    cmd.cdw11 = 0;
-    cmd.timeout_ms = 1000;
-
-    let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
-
-    match ret {
-        Ok(0) => Ok(log),
-        Ok(status) => Err(io::Error::other(format!(
-            "NVMe admin command failed, status={:#x}",
-            status
-        ))),
-        Err(e) => Err(io::Error::other(e.to_string())),
-    }
-}
-
-/// Extract raw nvme_error_log_page from an NVMe device.
-///
-/// Internal function to read raw error log entries.
-/// Users should call `read_error_log()` instead.
-///
-/// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
-/// * `num_entries` - Number of entries of error logs implemented by the vendor.
-///
-/// # Errors
-/// Returns an error if:
-/// - The device cannot be opened
-/// - The admin command fails
-/// - The NVMe controller returns a non-zero status
-fn read_error_log_raw(dev_path: &str, num_entries: u16) -> io::Result<Vec<nvme_error_log_page>> {
-    let file = OpenOptions::new().read(true).write(true).open(dev_path)?;
-
-    let fd = file.as_raw_fd();
-
-    // Allocate buffer for multiple entries
-    let entries_count = num_entries as usize;
-    let mut entries = vec![unsafe { zeroed::<nvme_error_log_page>() }; entries_count];
-
-    let log_ptr = entries.as_mut_ptr() as u64;
-    let log_len = (entries_count * size_of::<nvme_error_log_page>()) as u32;
-
-    let log_id: u8 = 0x01; // Error Information Log
-    let numd: u32 = log_len / 4 - 1;
-    let cdw10: u32 = (log_id as u32) | (numd << 16);
-
-    let mut cmd: nvme_admin_cmd = unsafe { zeroed() };
-    cmd.opcode = nvme_admin_get_log_page as u8;
-    cmd.nsid = 0xFFFF_FFFF;
-    cmd.addr = log_ptr;
-    cmd.data_len = log_len;
-    cmd.cdw10 = cdw10;
-    cmd.cdw11 = 0;
-    cmd.timeout_ms = 5000;
-
-    let ret = unsafe { nvme_cli_sys::nvme_ioctl_admin_cmd(fd, &mut cmd) };
-
-    match ret {
-        Ok(0) => Ok(entries),
-        Ok(status) => Err(io::Error::other(format!(
-            "Error log command failed, status={:#x}",
-            status
-        ))),
-        Err(e) => Err(io::Error::other(e.to_string())),
-    }
-}
-
-/// Read Error Information Log (Log Page 0x01).
-///
-/// Automatically determines the correct number of entries to read by querying
-/// the controller's ELPE (Error Log Page Entries) field.
-///
-/// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
-///
-/// # Errors
-/// Returns an error if:
-/// - The device cannot be opened
-/// - The identify command fails
-/// - The error log command fails
-pub fn read_error_log(dev_path: &str) -> io::Result<NvmeErrorLog> {
-    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
-
-    // Query controller to get ELPE
-    let id_ctrl = read_nvme_id_ctrl(dev_path)?;
-    let diag = CtrlDiagnostics::new(nvme_name.clone(), &id_ctrl);
-
-    // Calculate number of entries (ELPE is 0-based)
-    let max_entries = (diag.elpe + 1) as u16;
-
-    let raw_entries = read_error_log_raw(dev_path, max_entries)?;
-    Ok(NvmeErrorLog::new(nvme_name, raw_entries))
 }
