@@ -1,6 +1,6 @@
 [package]
 name = "nvme-telem"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"          
 license = "MIT"
 description = "NVMe S.M.A.R.T. / telemetry collection for Linux"
