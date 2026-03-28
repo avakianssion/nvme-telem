@@ -1,6 +1,6 @@
 [package]
 name = "nvme-telem"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"          
 license = "MIT"
 description = "NVMe S.M.A.R.T. / telemetry collection for Linux"
@@ -21,3 +21,7 @@ default = ["nvme-cli-sys"]
 [package.metadata.docs.rs]
 # Build docs without the system dependency because docs break
 default-features = false
+
+[[example]]
+name = "sanity_check"
+doc-scrape-examples = false
