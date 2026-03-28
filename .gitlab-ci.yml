@@ -1,6 +1,6 @@
 image: rockylinux:9
 
-stages: [lint, build, version-check, publish]
+stages: [lint, build, test, version-check, publish]
 
 before_script:
   - dnf install -y clang-devel llvm-devel
@@ -23,6 +23,10 @@ build:
   script:
     - cargo build
 
+test:
+  stage: test
+  script:
+    - cargo test
 check-version:
   stage: version-check
   script:

@@ -1,8 +1,8 @@
 //! NVMe telemetry and data collection.
 
-mod io;
-mod telemetry;
-mod types;
+pub mod io;
+pub mod telemetry;
+pub mod types;
 
 // Re-export public types
 pub use types::*;
