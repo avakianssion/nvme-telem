@@ -1,6 +1,6 @@
 [package]
 name = "nvme-telem"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"          
 license = "MIT"
 description = "NVMe S.M.A.R.T. / telemetry collection for Linux"
@@ -13,14 +13,11 @@ authors = ["Sion Avakian <avakianssion@gmail.com>"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-nvme-cli-sys = { version = "0.1.5", optional = true }
-
-[features]
-default = ["nvme-cli-sys"]
+nvme-cli-sys = "0.1.5"  # Make it required, not optional
 
 [package.metadata.docs.rs]
-# Build docs without the system dependency because docs break
-default-features = false
+rustdoc-args = ["--cfg", "docsrs"]
+# Remove the "default-features = false" line
 
 [[example]]
 name = "sanity_check"
