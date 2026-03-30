@@ -27,4 +27,3 @@
 //! The unsafe code is isolated to the device communication layer and follows
 //! the NVMe specification for command formatting.
 pub mod nvme;
-pub mod vendors;

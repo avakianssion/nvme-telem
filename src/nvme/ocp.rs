@@ -243,8 +243,11 @@ const _: () = assert!(size_of::<OcpSmartExtendedLog>() == 512);
 /// This struct provides a type-safe interface to the raw OCP log data.
 #[derive(Debug, Serialize)]
 pub struct OcpSmartData {
-    /// NVMe device name (e.g., "nvme0")
+    // NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
+
+    // NVMe Serial Number
+    pub serial_number: String,
 
     // Media units
     pub physical_media_units_written: u128,
@@ -330,7 +333,7 @@ pub struct OcpSmartData {
 
 impl OcpSmartData {
     /// Create a new OcpSmartData from raw OCP log data.
-    pub fn new(nvme_name: String, raw: &OcpSmartExtendedLog) -> Self {
+    pub fn new(nvme_name: String, serial_number: String, raw: &OcpSmartExtendedLog) -> Self {
         // Convert 16-byte arrays to u128
         let media_written = u128::from_le_bytes(raw.physical_media_units_written);
         let media_read = u128::from_le_bytes(raw.physical_media_units_read);
@@ -379,6 +382,7 @@ impl OcpSmartData {
 
         Self {
             nvme_name,
+            serial_number,
             physical_media_units_written: media_written,
             physical_media_units_read: media_read,
             bad_user_nand_blocks_raw: bad_user_blocks,

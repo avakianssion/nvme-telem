@@ -1,6 +1,5 @@
 // examples/sanity_check.rs
 use nvme_telem::nvme;
-use nvme_telem::vendors;
 
 fn main() {
     println!("--- NVMe Sanity Check ---\n");
@@ -104,42 +103,59 @@ fn main() {
 
         // Test 5: OCP Extended SMART Log
         print!("\nTest 5: Reading OCP extended SMART log (0xC0)... ");
-        match vendors::read_ocp_smart_log(&dev_path) {
-            Ok(raw) => {
-                let ocp = vendors::OcpSmartData::new(ctrl.clone(), &raw);
+        match nvme::get_smart_add_log(&dev_path) {
+            Ok(smart_add_log) => {
                 println!("[OK] Success!");
-                println!("  Device: {}", ocp.nvme_name);
+                println!("  Device: {}", smart_add_log.nvme_name);
                 println!(
                     "  Physical Media Written: {}",
-                    ocp.physical_media_units_written
+                    smart_add_log.physical_media_units_written
                 );
-                println!("  Physical Media Read: {}", ocp.physical_media_units_read);
-                println!("  Bad User NAND Blocks: {}", ocp.bad_user_nand_blocks_raw);
+                println!(
+                    "  Physical Media Read: {}",
+                    smart_add_log.physical_media_units_read
+                );
+                println!(
+                    "  Bad User NAND Blocks: {}",
+                    smart_add_log.bad_user_nand_blocks_raw
+                );
                 println!(
                     "  Bad System NAND Blocks: {}",
-                    ocp.bad_system_nand_blocks_raw
+                    smart_add_log.bad_system_nand_blocks_raw
                 );
-                println!("  Percent Free Blocks: {}%", ocp.percent_free_blocks);
+                println!(
+                    "  Percent Free Blocks: {}%",
+                    smart_add_log.percent_free_blocks
+                );
                 println!(
                     "  User Data Erase Count (Max): {}",
-                    ocp.user_data_erase_count_max
+                    smart_add_log.user_data_erase_count_max
                 );
                 println!(
                     "  User Data Erase Count (Min): {}",
-                    ocp.user_data_erase_count_min
+                    smart_add_log.user_data_erase_count_min
                 );
-                println!("  NAND Avg Erase Count: {}", ocp.nand_avg_erase_count);
+                println!(
+                    "  NAND Avg Erase Count: {}",
+                    smart_add_log.nand_avg_erase_count
+                );
                 println!(
                     "  Thermal Throttling Events: {}",
-                    ocp.thermal_throttling_events
+                    smart_add_log.thermal_throttling_events
                 );
-                println!("  PCIe Correctable Errors: {}", ocp.pcie_correctable_errors);
-                println!("  Incomplete Shutdowns: {}", ocp.incomplete_shutdowns);
-                println!("  Unaligned I/O: {}", ocp.unaligned_io);
-                println!("  Command Timeouts: {}", ocp.command_timeouts);
-                println!("  Total Media Dies: {}", ocp.total_media_dies);
-                println!("  Media Dies Offline: {}", ocp.media_dies_offline);
-                println!("  Log Page Version: {}", ocp.log_page_version);
+                println!(
+                    "  PCIe Correctable Errors: {}",
+                    smart_add_log.pcie_correctable_errors
+                );
+                println!(
+                    "  Incomplete Shutdowns: {}",
+                    smart_add_log.incomplete_shutdowns
+                );
+                println!("  Unaligned I/O: {}", smart_add_log.unaligned_io);
+                println!("  Command Timeouts: {}", smart_add_log.command_timeouts);
+                println!("  Total Media Dies: {}", smart_add_log.total_media_dies);
+                println!("  Media Dies Offline: {}", smart_add_log.media_dies_offline);
+                println!("  Log Page Version: {}", smart_add_log.log_page_version);
             }
             Err(e) => {
                 println!("[FAIL] Not available: {}", e);

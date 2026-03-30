@@ -5,6 +5,7 @@
 //! data enrichment.
 
 use crate::nvme::io::*;
+use crate::nvme::ocp::{OcpSmartData, read_ocp_smart_log};
 use crate::nvme::types::{self, *};
 use std::fs;
 
@@ -160,4 +161,42 @@ pub fn list_nvme_controllers() -> Vec<String> {
     }
 
     names
+}
+
+/// Retrieve and parses the OCP SMART Extended Log for a given NVMe device.
+///
+/// This function reads the NVMe Identify Controller data to extract the device's
+/// serial number, then fetches the OCP SMART Additional Log and combines both
+/// into a complete [`OcpSmartExtendedLog`] structure.
+///
+/// # Arguments
+///
+/// * `dev_path` - The filesystem path to the NVMe device (e.g., `"/dev/nvme0"`).
+///
+/// # Returns
+///
+/// Returns an [`OcpSmartExtendedLog`] on success, or an [`io::Error`] if any
+/// underlying device read fails.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * Reading the NVMe Identify Controller data fails.
+/// * Reading the OCP SMART Additional Log fails.
+pub fn get_smart_add_log(dev_path: &str) -> Result<OcpSmartData> {
+    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
+
+    // Get serial number from Identify Controller
+    let id_ctrl = read_nvme_id_ctrl(dev_path)?;
+    let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+
+    // Get SMART ADD LOG data
+    let raw_smart_add_log = read_ocp_smart_log(dev_path)?;
+
+    // Combine into complete struct
+    Ok(OcpSmartData::new(
+        nvme_name,
+        serial_number,
+        &raw_smart_add_log,
+    ))
 }
