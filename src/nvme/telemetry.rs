@@ -167,7 +167,7 @@ pub fn list_nvme_controllers() -> Vec<String> {
 ///
 /// This function reads the NVMe Identify Controller data to extract the device's
 /// serial number, then fetches the OCP SMART Additional Log and combines both
-/// into a complete [`OcpSmartExtendedLog`] structure.
+/// into a complete [`OcpSmartData`] structure.
 ///
 /// # Arguments
 ///
@@ -175,7 +175,7 @@ pub fn list_nvme_controllers() -> Vec<String> {
 ///
 /// # Returns
 ///
-/// Returns an [`OcpSmartExtendedLog`] on success, or an [`io::Error`] if any
+/// Returns an [`OcpSmartData`] on success, or an [`io::Error`] if any
 /// underlying device read fails.
 ///
 /// # Errors
