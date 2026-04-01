@@ -13,11 +13,10 @@ authors = ["Sion Avakian <avakianssion@gmail.com>"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-nvme-cli-sys = "0.1.5"  # Make it required, not optional
+nvme-cli-sys = "0.1.5"  
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
-# Remove the "default-features = false" line
 
 [[example]]
 name = "sanity_check"
