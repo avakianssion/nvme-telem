@@ -9,42 +9,6 @@
 //! All functions in this module require root/sudo privileges to access `/dev/nvme*` devices.
 //! The functions use `unsafe` blocks internally to perform ioctl system calls, but the
 //! unsafe code is isolated and the public API is safe to use.
-//!
-//! # Usage
-//!
-//! Most users should prefer the high-level API in the [`telemetry`](super::telemetry) module,
-//! which automatically handles device identification and data parsing. Use this module only
-//! when you need direct access to raw NVMe data structures or when implementing custom
-//! telemetry collection logic.
-//!
-//! # Examples
-//!
-//! Reading raw SMART data:
-//!
-//! ```no_run
-//! use nvme_telem::nvme::io::read_nvme_smart_log;
-//!
-//! # fn main() -> std::io::Result<()> {
-//! let raw_smart = read_nvme_smart_log("/dev/nvme0")?;
-//! println!("Temperature: {} K", u16::from_le_bytes([
-//!     raw_smart.temperature[0],
-//!     raw_smart.temperature[1]
-//! ]));
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! Reading controller identification:
-//!
-//! ```no_run
-//! use nvme_telem::nvme::io::read_nvme_id_ctrl;
-//!
-//! # fn main() -> std::io::Result<()> {
-//! let id_ctrl = read_nvme_id_ctrl("/dev/nvme0")?;
-//! println!("Vendor ID: 0x{:04x}", id_ctrl.vid);
-//! # Ok(())
-//! # }
-//! ```
 
 use nvme_cli_sys::{
     nvme_admin_cmd, nvme_admin_opcode::nvme_admin_get_log_page,
