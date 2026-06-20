@@ -96,8 +96,8 @@ pub fn get_error_log(dev_path: &str) -> Result<NvmeErrorLog> {
     let diag = CtrlDiagnostics::new(nvme_name.clone(), &id_ctrl);
     let serial_number = types::parse_ascii_field(&id_ctrl.sn);
 
-    // Calculate number of entries (ELPE is 0-based)
-    let max_entries = (diag.elpe + 1) as u16;
+    // ELPE is 0-based, so 255 means 256 entries; widen before adding.
+    let max_entries = u16::from(diag.elpe) + 1;
 
     let raw_entries = read_error_log_raw(dev_path, max_entries)?;
     Ok(NvmeErrorLog::new(nvme_name, serial_number, raw_entries))
