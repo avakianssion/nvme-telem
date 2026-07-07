@@ -509,3 +509,47 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
         Err(e) => Err(io::Error::other(e.to_string())),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn zeroed_log() -> OcpSmartExtendedLog {
+        unsafe { std::mem::zeroed() }
+    }
+
+    #[test]
+    fn ocp_smart_data_converts_16_byte_le_arrays_to_u128() {
+        let mut raw = zeroed_log();
+        raw.physical_media_units_written[0] = 5;
+        raw.physical_media_units_read[1] = 1; // 256 in little-endian
+
+        let data = OcpSmartData::new("nvme0".into(), "SN123".into(), &raw);
+
+        assert_eq!(data.physical_media_units_written, 5);
+        assert_eq!(data.physical_media_units_read, 256);
+    }
+
+    #[test]
+    fn ocp_smart_data_converts_6_byte_bad_block_counts_to_u64() {
+        let mut raw = zeroed_log();
+        raw.bad_user_nand_blocks_raw = [1, 0, 0, 0, 0, 0];
+        raw.bad_system_nand_blocks_raw = [0, 1, 0, 0, 0, 0]; // 256 in little-endian
+
+        let data = OcpSmartData::new("nvme0".into(), "SN123".into(), &raw);
+
+        assert_eq!(data.bad_user_nand_blocks_raw, 1);
+        assert_eq!(data.bad_system_nand_blocks_raw, 256);
+    }
+
+    #[test]
+    fn ocp_smart_data_trims_firmware_revision_padding() {
+        let mut raw = zeroed_log();
+        let fw = b" 1.0.0\0\0"; // 8 bytes: dssd_firmware_revision is [u8; 8]
+        raw.dssd_firmware_revision.copy_from_slice(fw);
+
+        let data = OcpSmartData::new("nvme0".into(), "SN123".into(), &raw);
+
+        assert_eq!(data.dssd_firmware_revision, "1.0.0");
+    }
+}
