@@ -1,51 +1,208 @@
-image: rockylinux:9
+# ============================================================================
+# nvme-telem CI/CD
+#
+# Branch model:
+#   feature -> MR -> rc          (fragment required, full tests)
+#   rc      -> MR -> main        (release MR, created by prepare-release job)
+#   main                         (tag + publish to crates.io, deterministic)
+#
+# Invariants this pipeline enforces:
+#   * every MR into rc documents its change in .changeset/
+#   * the exact tree that ships is the tree that was tested (bump happens
+#     on rc BEFORE the release MR, never on main after merge)
+#   * publish is idempotent: re-running a green main pipeline is a no-op
+# ============================================================================
 
-stages: [lint, build, test, version-check, publish]
+stages:
+  - check
+  - test
+  - release
 
-before_script:
-  - dnf install -y clang-devel llvm-devel
-  - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-  - source "$HOME/.cargo/env"
-  - rustup component add rustfmt clippy
-  
-fmt:
-  stage: lint
+variables:
+  KNOPE_VERSION: "0.22.4"   # pin; bump deliberately
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo-home"
+
+default:
+  image: rust:1.91          # keep in sync with rust-toolchain.toml
+  before_script:
+    # bindgen needs libclang
+    # setup since the rust image already ships the toolchain + rustfmt/clippy
+    - apt-get update -qq && apt-get install -y -qq clang libclang-dev llvm-dev
+  cache:
+    key: cargo-$CI_JOB_NAME
+    paths:
+      - .cargo-home/registry
+      - target/
+
+# Prefer MR pipelines; branch pipelines only for rc and main.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "rc"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ----------------------------------------------------------------------------
+# CHECK: every MR into rc must carry a changeset fragment
+# (add the `skip-changelog` label for MRs that shouldn't appear in the
+# changelog or affect the version, e.g. CI tweaks, typo fixes)
+# ----------------------------------------------------------------------------
+require-changeset:
+  stage: check
+  variables:
+    GIT_DEPTH: "0"
+  cache: []
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "rc" && $CI_MERGE_REQUEST_LABELS =~ /skip-changelog/'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "rc"'
   script:
-    - cargo fmt --all -- --check
+    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - |
+      FRAGMENTS=$(git diff --name-only --diff-filter=A "origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}...HEAD" \
+                  | grep -E '^\.changeset/.+\.md$' | grep -v 'README\.md' || true)
+      if [ -z "$FRAGMENTS" ]; then
+        echo "ERROR: this MR must add a change file in .changeset/"
+        echo "Run 'knope document-change', or see .changeset/README.md for the format."
+        echo "(CI-only / no-release MRs can use the 'skip-changelog' label instead.)"
+        exit 1
+      fi
+      for f in $FRAGMENTS; do
+        if ! grep -qE '^default: (major|minor|patch)$' "$f"; then
+          echo "ERROR: $f is missing a valid bump line."
+          echo "Frontmatter must contain exactly: default: major|minor|patch"
+          exit 1
+        fi
+        echo "OK: $f"
+      done
 
-clippy:
-  stage: lint
-  script:
-    - cargo clippy --all-targets --all-features
-
-build:
-  stage: build
-  script:
-    - cargo build
-
+# ----------------------------------------------------------------------------
+# TEST: the trust gate. Runs on every MR and on rc/main pushes.
+# ----------------------------------------------------------------------------
 test:
   stage: test
   script:
-    - cargo test
-check-version:
-  stage: version-check
+    - rustc --version && cargo --version
+    - cargo fmt --all -- --check
+    # -D warnings makes clippy a hard gate; if the codebase has existing
+    # warnings, fix them first or temporarily drop the flag
+    - cargo clippy --all-targets --all-features -- -D warnings
+    # add --locked to build/test once Cargo.lock is committed
+    - cargo build --all-targets --all-features
+    - cargo test --all-features
+
+# Runs only in the release MR (rc -> main): proves the crate as merged can
+# actually be packaged and published, BEFORE you click merge.
+verify-package:
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
   script:
-    - CURRENT_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    - echo "Checking version $CURRENT_VERSION"
-    
-    # Check if version already exists on crates.io
+    - VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+    - echo "Release MR proposes version $VERSION"
+    # Fail early if this version already exists on crates.io — this catches
+    # merging rc -> main without having run prepare-release first.
     - |
-      if cargo search nvme-telem | grep -q "nvme-telem = \"$CURRENT_VERSION\""; then
-        echo "ERROR: Version $CURRENT_VERSION already published on crates.io"
-        echo "Please bump the version in Cargo.toml before merging"
+      if curl -sf "https://crates.io/api/v1/crates/nvme-telem/${VERSION}" > /dev/null; then
+        echo "ERROR: nvme-telem $VERSION is already on crates.io."
+        echo "Did you forget to run the prepare-release job on rc?"
         exit 1
       fi
+    - cargo publish --dry-run
 
-publish:
-  stage: publish
+# ----------------------------------------------------------------------------
+# RELEASE STEP 1 — Manual run on the rc pipeline.
+# Consumes fragments, bumps version, writes changelog, commits to rc,
+# and opens the rc -> main release MR.
+# ----------------------------------------------------------------------------
+prepare-release:
+  stage: release
+  variables:
+    GIT_DEPTH: "0"
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH == "rc"'
       when: manual
-    - when: never
   script:
-    - cargo publish --token ${CARGO_REGISTRY_TOKEN}
+    - cargo install knope --version "$KNOPE_VERSION" --locked
+    - git config user.name "release-bot"
+    - git config user.email "release-bot@users.noreply.${CI_SERVER_HOST}"
+    - git remote set-url origin "https://oauth2:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git fetch origin rc --tags
+    - git checkout -B rc origin/rc
+    - knope prepare-release        # bump + changelog + delete fragments + commit
+    - git push origin rc
+    - VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+    - echo "Prepared release v${VERSION}, opening release MR..."
+    - |
+      HTTP_CODE=$(curl -s -o /tmp/mr.json -w "%{http_code}" -X POST \
+        -H "PRIVATE-TOKEN: ${RELEASE_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests" \
+        --data-urlencode "source_branch=rc" \
+        --data-urlencode "target_branch=main" \
+        --data-urlencode "title=Release v${VERSION}" \
+        --data-urlencode "description=Automated release MR. Review CHANGELOG.md diff, wait for green, merge to publish.")
+      case "$HTTP_CODE" in
+        201) echo "Release MR created." ;;
+        409) echo "An rc -> main MR already exists; it now includes this release commit." ;;
+        *)   echo "ERROR: MR creation failed (HTTP $HTTP_CODE)"; cat /tmp/mr.json; exit 1 ;;
+      esac
+
+# ----------------------------------------------------------------------------
+# RELEASE STEP 2 — runs automatically on main after the release MR merges.
+# Only dumb, deterministic, idempotent actions. Tests (above) must pass first.
+# ----------------------------------------------------------------------------
+publish-crate:
+  stage: release
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+    # Tripwire 1: fragments must never reach main. This catches the race
+    # where a new MR merged into rc between prepare-release and the
+    # release-MR merge — that change would be unaccounted for.
+    - |
+      LEFTOVER=$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null || true)
+      if [ -n "$LEFTOVER" ]; then
+        echo "ERROR: changeset fragments leaked onto main:"
+        echo "$LEFTOVER"
+        echo "Re-run prepare-release on rc and merge again."
+        exit 1
+      fi
+    # Tag (idempotent)
+    - git fetch origin --tags
+    - |
+      if git rev-parse -q --verify "refs/tags/v${VERSION}" > /dev/null; then
+        echo "Tag v${VERSION} already exists, skipping."
+      else
+        git config user.name "release-bot"
+        git config user.email "release-bot@users.noreply.${CI_SERVER_HOST}"
+        git tag -a "v${VERSION}" -m "Release v${VERSION}"
+        git push "https://oauth2:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "v${VERSION}"
+      fi
+    # Publish (idempotent — tripwire 2 doubles as the re-run guard)
+    - |
+      if curl -sf "https://crates.io/api/v1/crates/nvme-telem/${VERSION}" > /dev/null; then
+        echo "nvme-telem ${VERSION} already on crates.io, skipping publish."
+      else
+        cargo publish   # add --locked once Cargo.lock is committed
+      fi
+
+# Create a GitLab Release pointing at the tag, with this version's
+# changelog section as the description.
+gitlab-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  before_script: []          # alpine image, no rust deps needed here
+  cache: []
+  needs: ["publish-crate"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+    # Extract this version's section from CHANGELOG.md (first "## " block)
+    - awk '/^## /{n++} n==1' CHANGELOG.md > /tmp/notes.md || echo "See CHANGELOG.md" > /tmp/notes.md
+    - release-cli create
+        --name "v${VERSION}"
+        --tag-name "v${VERSION}"
+        --description "$(cat /tmp/notes.md)"
