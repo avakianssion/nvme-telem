@@ -26,8 +26,8 @@ default:
   image: rust:1.91          # keep in sync with rust-toolchain.toml
   before_script:
     # bindgen needs libclang
-    # setup since the rust image already ships the toolchain + rustfmt/clippy
     - apt-get update -qq && apt-get install -y -qq clang libclang-dev llvm-dev
+    - rustup component add rustfmt clippy
   cache:
     key: cargo-$CI_JOB_NAME
     paths:
@@ -110,7 +110,7 @@ verify-package:
     - cargo publish --dry-run
 
 # ----------------------------------------------------------------------------
-# RELEASE STEP 1 — Manual run on the rc pipeline.
+# RELEASE STEP 1 — Manual job on the rc pipeline.
 # Consumes fragments, bumps version, writes changelog, commits to rc,
 # and opens the rc -> main release MR.
 # ----------------------------------------------------------------------------
