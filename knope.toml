@@ -1,0 +1,49 @@
+# knope configuration — https://knope.tech
+#
+# Versioning is driven ONLY by change files in .changeset/ (one per MR).
+# Commit messages are never parsed, so commit however you like.
+
+[package]
+versioned_files = ["Cargo.toml"]
+# If you commit Cargo.lock (recommended once you rely on --locked in CI),
+# add it here too so the bump commit keeps it in sync:
+# versioned_files = ["Cargo.toml", "Cargo.lock"]
+changelog = "CHANGELOG.md"
+
+# --- Run in CI (manual job on rc) or locally with `knope prepare-release` ---
+# Consumes every .changeset/*.md file:
+#   * picks the semver bump (max of all fragments wins)
+#   * writes the combined entry to CHANGELOG.md
+#   * writes the new version to Cargo.toml
+#   * deletes the fragments
+#   * commits the result
+# Pushing is intentionally left to CI (it needs the authenticated remote),
+# which also makes local dry-runs side-effect free:
+#   knope prepare-release --dry-run
+[[workflows]]
+name = "prepare-release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+# Never derive version/changelog from commit messages, changesets only.
+ignore_conventional_commits = true
+
+[[workflows.steps]]
+type = "Command"
+command = "git commit -m \"chore: prepare release $version\""
+
+# --- For contributors: interactively create a change file ------------------
+#   knope document-change
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+
+# --- Utility: print the current version ------------------------------------
+[[workflows]]
+name = "get-version"
+
+[[workflows.steps]]
+type = "Command"
+command = "echo \"$version\""
