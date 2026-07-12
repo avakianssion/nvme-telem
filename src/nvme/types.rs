@@ -1006,3 +1006,86 @@ pub fn convert_cchar_to_u8_array_16(bytes: &[c_char; 16]) -> [u8; 16] {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cchars(s: &[u8]) -> Vec<c_char> {
+        s.iter().map(|&b| b as c_char).collect()
+    }
+
+    #[test]
+    fn parse_ascii_field_trims_null_padding() {
+        let mut bytes = cchars(b"ABC");
+        bytes.resize(8, 0);
+        assert_eq!(parse_ascii_field(&bytes), "ABC");
+    }
+
+    #[test]
+    fn parse_ascii_field_trims_surrounding_spaces() {
+        let bytes = cchars(b"  hello   ");
+        assert_eq!(parse_ascii_field(&bytes), "hello");
+    }
+
+    #[test]
+    fn parse_ascii_field_all_padding_is_empty() {
+        let bytes = vec![0 as c_char; 4];
+        assert_eq!(parse_ascii_field(&bytes), "");
+    }
+
+    #[test]
+    fn convert_cchar_to_u8_array_16_preserves_high_bit_bytes() {
+        let input: [c_char; 16] = [0xFFu8 as c_char; 16];
+        assert_eq!(convert_cchar_to_u8_array_16(&input), [0xFFu8; 16]);
+    }
+
+    #[test]
+    fn nvme_smart_log_maps_zero_temp_sensor_to_none() {
+        let mut raw: nvme_smart_log = unsafe { std::mem::zeroed() };
+        raw.temp_sensor = [0, 300, 0, 0, 0, 0, 0, 0];
+
+        let smart = NvmeSmartLog::new("nvme0".into(), "SN123".into(), &raw);
+
+        assert_eq!(smart.temperature_sensor_1, None);
+        assert_eq!(smart.temperature_sensor_2, Some(300));
+        assert_eq!(smart.temperature_sensor_3, None);
+    }
+
+    #[test]
+    fn nvme_smart_log_parses_composite_temperature_as_little_endian() {
+        let mut raw: nvme_smart_log = unsafe { std::mem::zeroed() };
+        raw.temperature = [0x0A, 0x01]; // little-endian 0x010A
+
+        let smart = NvmeSmartLog::new("nvme0".into(), "SN123".into(), &raw);
+
+        assert_eq!(smart.temperature, 0x010A);
+    }
+
+    #[test]
+    fn nvme_error_log_filters_out_empty_entries() {
+        let populated = nvme_error_log_page {
+            error_count: 1,
+            lba: 42,
+            ..Default::default()
+        };
+
+        let empty: nvme_error_log_page = Default::default(); // error_count == 0
+
+        let other = nvme_error_log_page {
+            error_count: 2,
+            ..Default::default()
+        };
+
+        let log = NvmeErrorLog::new(
+            "nvme0".into(),
+            "SN123".into(),
+            vec![populated, empty, other],
+        );
+
+        assert_eq!(log.entries.len(), 2);
+        assert_eq!(log.entries[0].error_count, 1);
+        assert_eq!(log.entries[0].lba, 42);
+        assert_eq!(log.entries[1].error_count, 2);
+    }
+}
