@@ -1,5 +1,5 @@
 ---
-default: minor
+default: patch
 ---
 
 # Add unit tests for ocp and types
