@@ -26,6 +26,7 @@ default:
   image: rust:1.91          # keep in sync with rust-toolchain.toml
   before_script:
     # bindgen needs libclang
+    # rustup's minimal profile, so fmt/clippy must be added explicitly
     - apt-get update -qq && apt-get install -y -qq clang libclang-dev llvm-dev
     - rustup component add rustfmt clippy
   cache:
@@ -110,7 +111,7 @@ verify-package:
     - cargo publish --dry-run
 
 # ----------------------------------------------------------------------------
-# RELEASE STEP 1 — Manual job on the rc pipeline.
+# RELEASE STEP 1 - Manual job on the rc pipeline.
 # Consumes fragments, bumps version, writes changelog, commits to rc,
 # and opens the rc -> main release MR.
 # ----------------------------------------------------------------------------
@@ -122,6 +123,7 @@ prepare-release:
     - if: '$CI_COMMIT_BRANCH == "rc"'
       when: manual
   script:
+    - export PATH="$CARGO_HOME/bin:$PATH"   # cargo install targets our overridden CARGO_HOME
     - cargo install knope --version "$KNOPE_VERSION" --locked
     - git config user.name "release-bot"
     - git config user.email "release-bot@users.noreply.${CI_SERVER_HOST}"
