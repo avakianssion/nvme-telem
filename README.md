@@ -21,12 +21,12 @@ cargo add nvme-telem
 ## Quick start example
 
 ```rust
-use nvme_telem::nvme;
+use nvme_telem::nvme::{self, Device};
 
 fn main() {
     for ctrl in nvme::list_nvme_controllers() {
         let dev = format!("/dev/{}", ctrl);
-        match nvme::get_smart_log(&dev) {
+        match Device::open(&dev).and_then(|device| device.smart_log()) {
             Ok(smart) => println!(
                 "{} (S/N {}): {} K, {} power-on hours, critical warning {:#x}",
                 smart.nvme_name,

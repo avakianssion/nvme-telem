@@ -1,5 +1,5 @@
 // examples/sanity_check.rs
-use nvme_telem::nvme;
+use nvme_telem::nvme::{self, Device};
 
 fn main() {
     println!("--- NVMe Sanity Check ---\n");
@@ -25,9 +25,18 @@ fn main() {
         println!("Testing: {}", ctrl);
         println!("{}", "=".repeat(60));
 
+        let device = match Device::open(&dev_path) {
+            Ok(device) => device,
+            Err(e) => {
+                println!("[FAIL] Could not open {}: {}", dev_path, e);
+                println!("       (This might require sudo/root access)");
+                continue;
+            }
+        };
+
         // Test 2: S.M.A.R.T. Log
         print!("\nTest 2: Reading SMART log... ");
-        match nvme::get_smart_log(&dev_path) {
+        match device.smart_log() {
             Ok(smart) => {
                 println!("[OK] Success!");
                 println!(
@@ -51,7 +60,7 @@ fn main() {
 
         // Test 3: Controller Identity
         print!("\nTest 3: Reading controller identity... ");
-        match nvme::get_controller_identity(&dev_path) {
+        match device.identity() {
             Ok(identity) => {
                 println!("[OK] Success!");
                 println!("\n  Identity:");
@@ -69,7 +78,7 @@ fn main() {
 
         // Test 4: Error Log
         print!("\nTest 4: Reading error log (0x01)... ");
-        match nvme::get_error_log(&dev_path) {
+        match device.error_log() {
             Ok(error_log) => {
                 println!("[OK] Success!");
                 println!(
@@ -103,7 +112,7 @@ fn main() {
 
         // Test 5: OCP Extended SMART Log
         print!("\nTest 5: Reading OCP extended SMART log (0xC0)... ");
-        match nvme::get_smart_add_log(&dev_path) {
+        match device.ocp_smart_log() {
             Ok(smart_add_log) => {
                 println!("[OK] Success!");
                 println!("  Device: {}", smart_add_log.nvme_name);

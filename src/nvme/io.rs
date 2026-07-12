@@ -17,29 +17,20 @@ use nvme_cli_sys::{
 use std::fs::OpenOptions;
 use std::io;
 use std::mem::{size_of, zeroed};
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
 // =============================================================================
 // IDENTIFY COMMANDS
 // =============================================================================
 
-/// Extract raw nvme_id_ctrl using the Identify admin command.
-///
-/// # Arguments
-/// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
+/// Extract raw nvme_id_ctrl using the Identify admin command, on an already-open fd.
 ///
 /// # Errors
 /// Returns an error if:
-/// - The device cannot be opened
 /// - The admin command fails
 /// - The NVMe controller returns a non-zero status
-pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true) // Admin permission required
-        .open(dev_path)?;
-
-    let fd = file.as_raw_fd();
+pub(crate) fn read_nvme_id_ctrl_fd(fd: BorrowedFd<'_>) -> io::Result<nvme_id_ctrl> {
+    let fd = fd.as_raw_fd();
 
     // Identify Controller payload is 4096 bytes based on the C bindings
     let mut id: nvme_id_ctrl = unsafe { zeroed() };
@@ -72,15 +63,7 @@ pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     }
 }
 
-// =============================================================================
-// LOG PAGE COMMANDS
-// =============================================================================
-
-/// Extract raw nvme_smart_log from an NVMe device.
-///
-/// The S.M.A.R.T./Health Information log page (Log ID 0x02) provides information
-/// over the life of the controller and is retained across power cycles unless
-/// otherwise specified.
+/// Extract raw nvme_id_ctrl using the Identify admin command.
 ///
 /// # Arguments
 /// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
@@ -90,13 +73,31 @@ pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
 /// - The device cannot be opened
 /// - The admin command fails
 /// - The NVMe controller returns a non-zero status
-pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
+pub fn read_nvme_id_ctrl(dev_path: &str) -> io::Result<nvme_id_ctrl> {
     let file = OpenOptions::new()
         .read(true)
         .write(true) // Admin permission required
         .open(dev_path)?;
 
-    let fd = file.as_raw_fd();
+    read_nvme_id_ctrl_fd(file.as_fd())
+}
+
+// =============================================================================
+// LOG PAGE COMMANDS
+// =============================================================================
+
+/// Extract raw nvme_smart_log from an NVMe device, on an already-open fd.
+///
+/// The S.M.A.R.T./Health Information log page (Log ID 0x02) provides information
+/// over the life of the controller and is retained across power cycles unless
+/// otherwise specified.
+///
+/// # Errors
+/// Returns an error if:
+/// - The admin command fails
+/// - The NVMe controller returns a non-zero status
+pub(crate) fn read_nvme_smart_log_fd(fd: BorrowedFd<'_>) -> io::Result<nvme_smart_log> {
+    let fd = fd.as_raw_fd();
 
     // Allocate memory for the response
     let mut log: nvme_smart_log = unsafe { zeroed() };
@@ -130,27 +131,42 @@ pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
     }
 }
 
-/// Extract raw nvme_error_log_page from an NVMe device.
-///
-/// Internal function to read raw error log entries.
-/// Users should call `get_error_log()` instead.
+/// Extract raw nvme_smart_log from an NVMe device.
 ///
 /// # Arguments
 /// * `dev_path` - Path to the NVMe device (e.g., "/dev/nvme0")
-/// * `num_entries` - Number of entries of error logs implemented by the vendor.
 ///
 /// # Errors
 /// Returns an error if:
 /// - The device cannot be opened
 /// - The admin command fails
 /// - The NVMe controller returns a non-zero status
-pub(super) fn read_error_log_raw(
-    dev_path: &str,
+pub fn read_nvme_smart_log(dev_path: &str) -> io::Result<nvme_smart_log> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true) // Admin permission required
+        .open(dev_path)?;
+
+    read_nvme_smart_log_fd(file.as_fd())
+}
+
+/// Extract raw nvme_error_log_page from an NVMe device, on an already-open fd.
+///
+/// Internal function to read raw error log entries.
+/// Users should call `get_error_log()` instead.
+///
+/// # Arguments
+/// * `num_entries` - Number of entries of error logs implemented by the vendor.
+///
+/// # Errors
+/// Returns an error if:
+/// - The admin command fails
+/// - The NVMe controller returns a non-zero status
+pub(crate) fn read_error_log_raw_fd(
+    fd: BorrowedFd<'_>,
     num_entries: u16,
 ) -> io::Result<Vec<nvme_error_log_page>> {
-    let file = OpenOptions::new().read(true).write(true).open(dev_path)?;
-
-    let fd = file.as_raw_fd();
+    let fd = fd.as_raw_fd();
 
     // Allocate buffer for multiple entries
     let entries_count = num_entries as usize;
