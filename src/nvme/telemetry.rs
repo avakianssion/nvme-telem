@@ -5,9 +5,206 @@
 //! data enrichment.
 
 use crate::nvme::io::*;
-use crate::nvme::ocp::{OcpSmartData, read_ocp_smart_log};
+use crate::nvme::ocp::{OcpSmartData, read_ocp_smart_log_fd};
 use crate::nvme::types::{self, *};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::os::fd::{AsFd, OwnedFd};
+use std::path::Path;
+
+/// A handle to an open NVMe character device.
+///
+/// `Device` owns the underlying file descriptor for a device such as
+/// `/dev/nvme0`, opened once via [`Device::open`]. Each accessor method
+/// (`smart_log`, `identity`, `error_log`, `ocp_smart_log`) reuses that
+/// same descriptor to issue its NVMe Admin commands, rather than
+/// reopening the device path per call.
+///
+/// The descriptor is closed automatically when the `Device` is dropped.
+///
+/// # Requirements
+///
+/// Opening a device and issuing any of the commands below requires
+/// root/sudo privileges to access `/dev/nvme*`.
+///
+/// # Safety
+///
+/// All commands issued by `Device` are read-only NVMe Admin commands
+/// (Identify and Get Log Page) — they do not modify device state.
+#[derive(Debug)]
+pub struct Device {
+    fd: OwnedFd,
+    nvme_name: String,
+}
+
+impl Device {
+    /// Open an NVMe character device (e.g. `/dev/nvme0`).
+    ///
+    /// The device is opened once; the resulting file descriptor is reused
+    /// by every accessor method on the returned `Device`. Requires
+    /// root/sudo privileges.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the device path does not exist or cannot be
+    /// opened (e.g. insufficient permissions).
+    pub fn open(path: impl AsRef<Path>) -> Result<Device> {
+        let path = path.as_ref();
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true) // Admin permission required
+            .open(path)?;
+
+        let nvme_name = path
+            .to_string_lossy()
+            .trim_start_matches("/dev/")
+            .to_string();
+
+        Ok(Device {
+            fd: file.into(),
+            nvme_name,
+        })
+    }
+
+    /// Retrieve S.M.A.R.T./Health Information from this device.
+    ///
+    /// Issues an Identify Controller command (for the serial number) and a
+    /// Get Log Page command for the S.M.A.R.T./Health Information log
+    /// (Log ID 0x02). Both are read-only NVMe Admin commands.
+    ///
+    /// # Returns
+    ///
+    /// Returns [`NvmeSmartLog`] containing:
+    /// - Device identification (name and serial number)
+    /// - Critical warnings and health status
+    /// - Temperature readings from all available sensors
+    /// - Storage capacity usage (percentage used, available spare)
+    /// - Lifetime statistics (power cycles, power-on hours, data read/written)
+    /// - Error and reliability metrics (media errors, unsafe shutdowns)
+    /// - Thermal management history
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The NVMe controller does not respond or returns an error status
+    /// - The device is not a valid NVMe controller
+    pub fn smart_log(&self) -> Result<NvmeSmartLog> {
+        let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+
+        let raw_smart = read_nvme_smart_log_fd(self.fd.as_fd())?;
+
+        Ok(NvmeSmartLog::new(
+            self.nvme_name.clone(),
+            serial_number,
+            &raw_smart,
+        ))
+    }
+
+    /// Retrieve Controller Identification data from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    ///
+    /// # Returns
+    ///
+    /// Returns [`CtrlIdentity`] containing:
+    /// - Vendor information (PCI VID, Subsystem VID, IEEE OUI)
+    /// - Device identification (serial number, model number, firmware revision)
+    /// - Controller identifiers (Controller ID, NVM Subsystem NQN)
+    /// - Hardware identification (FRU GUID)
+    /// - NVMe specification version supported by the controller
+    /// - Controller type
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn identity(&self) -> Result<CtrlIdentity> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlIdentity::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve Error Information Log from this device.
+    ///
+    /// Issues an Identify Controller command (to determine the ELPE —
+    /// Error Log Page Entries — field) followed by a Get Log Page command
+    /// for the Error Information log (Log ID 0x01). Both are read-only
+    /// NVMe Admin commands.
+    ///
+    /// The number of error entries retrieved is automatically determined by
+    /// querying the controller's ELPE field, ensuring all available error
+    /// history is collected.
+    ///
+    /// # Returns
+    ///
+    /// Returns [`NvmeErrorLog`] containing:
+    /// - Device identification (name and serial number)
+    /// - Vector of error entries, each including:
+    ///   - Error count and timestamp information
+    ///   - Command details (queue ID, command ID)
+    ///   - Error status and location
+    ///   - Affected LBA and namespace
+    ///   - Vendor-specific diagnostic data
+    ///
+    /// Note: Only populated error entries are returned (entries with `error_count != 0`).
+    /// A healthy drive may return an empty error list.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The Get Log Page command fails
+    /// - The device is not a valid NVMe controller
+    pub fn error_log(&self) -> Result<NvmeErrorLog> {
+        let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        let diag = CtrlDiagnostics::new(self.nvme_name.clone(), &id_ctrl);
+        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+
+        // ELPE is 0-based, so 255 means 256 entries; widen before adding.
+        let max_entries = u16::from(diag.elpe) + 1;
+
+        let raw_entries = read_error_log_raw_fd(self.fd.as_fd(), max_entries)?;
+        Ok(NvmeErrorLog::new(
+            self.nvme_name.clone(),
+            serial_number,
+            raw_entries,
+        ))
+    }
+
+    /// Retrieve and parse the OCP SMART Extended Log from this device.
+    ///
+    /// Issues an Identify Controller command (for the serial number)
+    /// followed by a Get Log Page command for the OCP SMART Extended Log
+    /// (Log ID 0xC0). Both are read-only NVMe Admin commands.
+    ///
+    /// # Returns
+    ///
+    /// Returns an [`OcpSmartData`] on success, or an [`std::io::Error`] if any
+    /// underlying device read fails.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * The process lacks sufficient permissions (requires root/sudo)
+    /// * Reading the NVMe Identify Controller data fails.
+    /// * Reading the OCP SMART Additional Log fails (including when the
+    ///   device does not support the OCP extended SMART log).
+    pub fn ocp_smart_log(&self) -> Result<OcpSmartData> {
+        let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+
+        let raw_smart_add_log = read_ocp_smart_log_fd(self.fd.as_fd())?;
+
+        Ok(OcpSmartData::new(
+            self.nvme_name.clone(),
+            serial_number,
+            &raw_smart_add_log,
+        ))
+    }
+}
 
 /// Retrieve S.M.A.R.T./Health Information from an NVMe device.
 ///
@@ -38,18 +235,9 @@ use std::fs;
 /// - The process lacks sufficient permissions (requires root/sudo)
 /// - The NVMe controller does not respond or returns an error status
 /// - The device is not a valid NVMe controller
+#[deprecated(since = "0.4.0", note = "use Device::open(path)?.smart_log() instead")]
 pub fn get_smart_log(dev_path: &str) -> Result<NvmeSmartLog> {
-    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
-
-    // Get serial number from Identify Controller
-    let id_ctrl = read_nvme_id_ctrl(dev_path)?;
-    let serial_number = types::parse_ascii_field(&id_ctrl.sn);
-
-    // Get SMART data
-    let raw_smart = read_nvme_smart_log(dev_path)?;
-
-    // Combine into complete struct
-    Ok(NvmeSmartLog::new(nvme_name, serial_number, &raw_smart))
+    Device::open(dev_path)?.smart_log()
 }
 
 /// Retrieve Error Information Log from an NVMe device.
@@ -88,19 +276,9 @@ pub fn get_smart_log(dev_path: &str) -> Result<NvmeSmartLog> {
 /// - The Identify Controller command fails
 /// - The Get Log Page command fails
 /// - The device is not a valid NVMe controller
+#[deprecated(since = "0.4.0", note = "use Device::open(path)?.error_log() instead")]
 pub fn get_error_log(dev_path: &str) -> Result<NvmeErrorLog> {
-    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
-
-    // Query controller to get ELPE
-    let id_ctrl = read_nvme_id_ctrl(dev_path)?;
-    let diag = CtrlDiagnostics::new(nvme_name.clone(), &id_ctrl);
-    let serial_number = types::parse_ascii_field(&id_ctrl.sn);
-
-    // ELPE is 0-based, so 255 means 256 entries; widen before adding.
-    let max_entries = u16::from(diag.elpe) + 1;
-
-    let raw_entries = read_error_log_raw(dev_path, max_entries)?;
-    Ok(NvmeErrorLog::new(nvme_name, serial_number, raw_entries))
+    Device::open(dev_path)?.error_log()
 }
 
 /// Retrieve Controller Identification data from an NVMe device.
@@ -130,10 +308,9 @@ pub fn get_error_log(dev_path: &str) -> Result<NvmeErrorLog> {
 /// - The process lacks sufficient permissions (requires root/sudo)
 /// - The Identify Controller command fails
 /// - The device is not a valid NVMe controller
+#[deprecated(since = "0.4.0", note = "use Device::open(path)?.identity() instead")]
 pub fn get_controller_identity(dev_path: &str) -> Result<CtrlIdentity> {
-    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
-    let raw = read_nvme_id_ctrl(dev_path)?;
-    Ok(CtrlIdentity::new(nvme_name, &raw))
+    Device::open(dev_path)?.identity()
 }
 
 /// Discover NVMe controllers available on the system.
@@ -175,7 +352,7 @@ pub fn list_nvme_controllers() -> Vec<String> {
 ///
 /// # Returns
 ///
-/// Returns an [`OcpSmartData`] on success, or an [`io::Error`] if any
+/// Returns an [`OcpSmartData`] on success, or an [`std::io::Error`] if any
 /// underlying device read fails.
 ///
 /// # Errors
@@ -183,20 +360,52 @@ pub fn list_nvme_controllers() -> Vec<String> {
 /// This function will return an error if:
 /// * Reading the NVMe Identify Controller data fails.
 /// * Reading the OCP SMART Additional Log fails.
+#[deprecated(
+    since = "0.4.0",
+    note = "use Device::open(path)?.ocp_smart_log() instead"
+)]
 pub fn get_smart_add_log(dev_path: &str) -> Result<OcpSmartData> {
-    let nvme_name = dev_path.trim_start_matches("/dev/").to_string();
+    Device::open(dev_path)?.ocp_smart_log()
+}
 
-    // Get serial number from Identify Controller
-    let id_ctrl = read_nvme_id_ctrl(dev_path)?;
-    let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // Get SMART ADD LOG data
-    let raw_smart_add_log = read_ocp_smart_log(dev_path)?;
+    #[test]
+    fn open_nonexistent_path_returns_error() {
+        let err = Device::open("/dev/nvme-telem-does-not-exist-xyz").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
 
-    // Combine into complete struct
-    Ok(OcpSmartData::new(
-        nvme_name,
-        serial_number,
-        &raw_smart_add_log,
-    ))
+    #[test]
+    #[allow(deprecated)]
+    fn deprecated_wrappers_fail_the_same_way_as_device_open() {
+        let path = "/dev/nvme-telem-does-not-exist-xyz";
+
+        let device_err = Device::open(path).unwrap_err();
+        let smart_err = get_smart_log(path).unwrap_err();
+        let identity_err = get_controller_identity(path).unwrap_err();
+        let error_log_err = get_error_log(path).unwrap_err();
+        let ocp_err = get_smart_add_log(path).unwrap_err();
+
+        assert_eq!(device_err.kind(), smart_err.kind());
+        assert_eq!(device_err.kind(), identity_err.kind());
+        assert_eq!(device_err.kind(), error_log_err.kind());
+        assert_eq!(device_err.kind(), ocp_err.kind());
+    }
+
+    #[test]
+    fn device_name_strips_dev_prefix() {
+        // /dev/null is always present, readable/writable, and lets us reach
+        // past `open()` to confirm the name parsing without real NVMe hardware.
+        let device = Device::open("/dev/null").expect("opening /dev/null should succeed");
+        assert_eq!(device.nvme_name, "null");
+    }
+
+    #[test]
+    fn drop_closes_fd_without_panicking() {
+        let device = Device::open("/dev/null").expect("opening /dev/null should succeed");
+        drop(device);
+    }
 }

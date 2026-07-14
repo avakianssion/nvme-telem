@@ -26,7 +26,7 @@ use serde::Serialize;
 use std::fs::OpenOptions;
 use std::io;
 use std::mem::{size_of, zeroed};
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
 /// OCP S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
 ///
@@ -432,11 +432,7 @@ impl OcpSmartData {
     }
 }
 
-/// Read OCP Extended SMART log from an NVMe device.
-///
-/// # Arguments
-///
-/// * `dev_path` - Path to the NVMe character device (e.g., `"/dev/nvme0"`)
+/// Read OCP Extended SMART log from an NVMe device, on an already-open fd.
 ///
 /// # Returns
 ///
@@ -445,8 +441,6 @@ impl OcpSmartData {
 /// # Errors
 ///
 /// This function will return an error if:
-/// - The device path does not exist or cannot be opened
-/// - The process lacks sufficient permissions (requires root/sudo)
 /// - The NVMe controller does not respond or returns an error status
 /// - The device does not support OCP extended SMART log (invalid or mismatched GUID)
 ///
@@ -455,9 +449,8 @@ impl OcpSmartData {
 /// Not all NVMe drives support the OCP extended SMART log. This function validates
 /// the OCP GUID in the returned data to ensure the device genuinely supports this
 /// feature and is not returning garbage data.
-pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
-    let file = OpenOptions::new().read(true).write(true).open(dev_path)?;
-    let fd = file.as_raw_fd();
+pub(crate) fn read_ocp_smart_log_fd(fd: BorrowedFd<'_>) -> io::Result<OcpSmartExtendedLog> {
+    let fd = fd.as_raw_fd();
     let mut log: OcpSmartExtendedLog = unsafe { zeroed() };
     let log_ptr = &mut log as *mut OcpSmartExtendedLog as u64;
     let log_len = size_of::<OcpSmartExtendedLog>() as u32;
@@ -508,6 +501,34 @@ pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
         ))),
         Err(e) => Err(io::Error::other(e.to_string())),
     }
+}
+
+/// Read OCP Extended SMART log from an NVMe device.
+///
+/// # Arguments
+///
+/// * `dev_path` - Path to the NVMe character device (e.g., `"/dev/nvme0"`)
+///
+/// # Returns
+///
+/// Returns the raw OCP SMART Extended Log structure.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - The device path does not exist or cannot be opened
+/// - The process lacks sufficient permissions (requires root/sudo)
+/// - The NVMe controller does not respond or returns an error status
+/// - The device does not support OCP extended SMART log (invalid or mismatched GUID)
+///
+/// # Note
+///
+/// Not all NVMe drives support the OCP extended SMART log. This function validates
+/// the OCP GUID in the returned data to ensure the device genuinely supports this
+/// feature and is not returning garbage data.
+pub fn read_ocp_smart_log(dev_path: &str) -> io::Result<OcpSmartExtendedLog> {
+    let file = OpenOptions::new().read(true).write(true).open(dev_path)?;
+    read_ocp_smart_log_fd(file.as_fd())
 }
 
 #[cfg(test)]
