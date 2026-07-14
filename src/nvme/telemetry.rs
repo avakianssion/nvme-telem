@@ -235,7 +235,7 @@ impl Device {
 /// - The process lacks sufficient permissions (requires root/sudo)
 /// - The NVMe controller does not respond or returns an error status
 /// - The device is not a valid NVMe controller
-#[deprecated(since = "0.4.0", note = "use Device::open(path)?.smart_log() instead")]
+#[deprecated(since = "0.3.2", note = "use Device::open(path)?.smart_log() instead")]
 pub fn get_smart_log(dev_path: &str) -> Result<NvmeSmartLog> {
     Device::open(dev_path)?.smart_log()
 }
@@ -276,7 +276,7 @@ pub fn get_smart_log(dev_path: &str) -> Result<NvmeSmartLog> {
 /// - The Identify Controller command fails
 /// - The Get Log Page command fails
 /// - The device is not a valid NVMe controller
-#[deprecated(since = "0.4.0", note = "use Device::open(path)?.error_log() instead")]
+#[deprecated(since = "0.3.2", note = "use Device::open(path)?.error_log() instead")]
 pub fn get_error_log(dev_path: &str) -> Result<NvmeErrorLog> {
     Device::open(dev_path)?.error_log()
 }
@@ -308,7 +308,7 @@ pub fn get_error_log(dev_path: &str) -> Result<NvmeErrorLog> {
 /// - The process lacks sufficient permissions (requires root/sudo)
 /// - The Identify Controller command fails
 /// - The device is not a valid NVMe controller
-#[deprecated(since = "0.4.0", note = "use Device::open(path)?.identity() instead")]
+#[deprecated(since = "0.3.2", note = "use Device::open(path)?.identity() instead")]
 pub fn get_controller_identity(dev_path: &str) -> Result<CtrlIdentity> {
     Device::open(dev_path)?.identity()
 }
@@ -361,7 +361,7 @@ pub fn list_nvme_controllers() -> Vec<String> {
 /// * Reading the NVMe Identify Controller data fails.
 /// * Reading the OCP SMART Additional Log fails.
 #[deprecated(
-    since = "0.4.0",
+    since = "0.3.2",
     note = "use Device::open(path)?.ocp_smart_log() instead"
 )]
 pub fn get_smart_add_log(dev_path: &str) -> Result<OcpSmartData> {
