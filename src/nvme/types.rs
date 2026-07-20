@@ -87,6 +87,9 @@ pub struct CtrlCapacity {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Total NVM Capacity (bytes)
     pub total_nvm_bytes: u128,
 
@@ -104,6 +107,7 @@ impl CtrlCapacity {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             total_nvm_bytes: u128::from_le_bytes(raw.tnvmcap),
             unallocated_nvm_bytes: u128::from_le_bytes(raw.unvmcap),
             max_endurance_group_bytes: u128::from_le_bytes(raw.megcap),
@@ -124,6 +128,9 @@ impl CtrlCapacity {
 pub struct CtrlCapabilities {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
+
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
 
     /// Optional Admin Command Support (bitfield)
     pub oacs: u16,
@@ -181,6 +188,7 @@ impl CtrlCapabilities {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             oacs: raw.oacs,
             oncs: raw.oncs,
             lpa: raw.lpa,
@@ -214,6 +222,9 @@ impl CtrlCapabilities {
 pub struct CtrlLimits {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
+
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
 
     /// Maximum Data Transfer Size (power of 2)
     pub mdts: u8,
@@ -259,6 +270,7 @@ impl CtrlLimits {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             mdts: raw.mdts,
             sqes: raw.sqes,
             cqes: raw.cqes,
@@ -288,6 +300,9 @@ pub struct CtrlThermals {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Warning Composite Temperature Threshold (Kelvin)
     pub wctemp_k: u16,
 
@@ -308,6 +323,7 @@ impl CtrlThermals {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             wctemp_k: raw.wctemp,
             cctemp_k: raw.cctemp,
             mntmt_k: raw.mntmt,
@@ -330,6 +346,9 @@ pub struct CtrlFirmware {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Firmware Updates (bitfield)
     pub frmw: u8,
 
@@ -344,6 +363,7 @@ impl CtrlFirmware {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             frmw: raw.frmw,
             fwug: raw.fwug,
             mtfa: raw.mtfa,
@@ -364,6 +384,9 @@ pub struct CtrlPowerStates {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Number of Power States Supported (npss + 1)
     pub num_power_states: u8,
 
@@ -378,6 +401,7 @@ impl CtrlPowerStates {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             num_power_states: raw.npss,
             apsta: raw.apsta,
             //power_state_descriptors: raw.psd,
@@ -398,6 +422,9 @@ pub struct CtrlHostMemory {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Host Memory Buffer Preferred Size (4KB units)
     pub hmpre: u32,
 
@@ -415,6 +442,7 @@ impl CtrlHostMemory {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             hmpre: raw.hmpre,
             hmmin: raw.hmmin,
             hmminds: raw.hmminds,
@@ -435,6 +463,9 @@ pub struct CtrlArbitration {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Recommended Arbitration Burst
     pub rab: u8,
 }
@@ -443,6 +474,7 @@ impl CtrlArbitration {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             rab: raw.rab,
         }
     }
@@ -460,6 +492,9 @@ pub struct CtrlDiagnostics {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Extended Device Self-test Time (minutes)
     pub edstt: u16,
 
@@ -474,6 +509,7 @@ impl CtrlDiagnostics {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             edstt: raw.edstt,
             dsto: raw.dsto,
             elpe: raw.elpe,
@@ -493,6 +529,9 @@ impl CtrlDiagnostics {
 pub struct CtrlAdvanced {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
+
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
 
     /// RTD3 Resume Latency (microseconds)
     pub rtd3r_us: u32,
@@ -535,6 +574,7 @@ impl CtrlAdvanced {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             rtd3r_us: raw.rtd3r,
             rtd3e_us: raw.rtd3e,
             rrls: raw.rrls,
@@ -563,6 +603,9 @@ pub struct CtrlCommandSets {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
+
     /// Admin Vendor Specific Command Configuration
     pub avscc: u8,
 
@@ -577,6 +620,7 @@ impl CtrlCommandSets {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             avscc: raw.avscc,
             icsvscc: raw.icsvscc,
             nwpc: raw.nwpc,
@@ -596,6 +640,9 @@ impl CtrlCommandSets {
 pub struct CtrlFabric {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
+
+    /// Serial Number (ASCII, space padded)
+    pub serial_number: String,
 
     /// I/O Command Capsule Supported Size (16-byte units)
     pub ioccsz: u32,
@@ -620,6 +667,7 @@ impl CtrlFabric {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
+            serial_number: parse_ascii_field(&raw.sn),
             ioccsz: raw.ioccsz,
             iorcsz: raw.iorcsz,
             icdoff: raw.icdoff,
@@ -1038,6 +1086,62 @@ mod tests {
     fn convert_cchar_to_u8_array_16_preserves_high_bit_bytes() {
         let input: [c_char; 16] = [0xFFu8 as c_char; 16];
         assert_eq!(convert_cchar_to_u8_array_16(&input), [0xFFu8; 16]);
+    }
+
+    #[test]
+    fn ctrl_substructs_carry_serial_number_from_id_ctrl() {
+        let mut raw: nvme_id_ctrl = unsafe { std::mem::zeroed() };
+        let sn = cchars(b"SN123456");
+        raw.sn[..sn.len()].copy_from_slice(&sn);
+
+        assert_eq!(
+            CtrlCapacity::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlCapabilities::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlLimits::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlThermals::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlFirmware::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlPowerStates::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlHostMemory::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlArbitration::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlDiagnostics::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlAdvanced::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlCommandSets::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(
+            CtrlFabric::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
     }
 
     #[test]
