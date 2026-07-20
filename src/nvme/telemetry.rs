@@ -15,9 +15,19 @@ use std::path::Path;
 ///
 /// `Device` owns the underlying file descriptor for a device such as
 /// `/dev/nvme0`, opened once via [`Device::open`]. Each accessor method
-/// (`smart_log`, `identity`, `error_log`, `ocp_smart_log`) reuses that
-/// same descriptor to issue its NVMe Admin commands, rather than
-/// reopening the device path per call.
+/// (`smart_log`, `identity`, `capacity`, `capabilities`, `limits`,
+/// `thermals`, `firmware`, `power_states`, `host_memory`, `arbitration`,
+/// `diagnostics`, `advanced`, `command_sets`, `fabric`, `error_log`,
+/// `ocp_smart_log`) reuses that same descriptor to issue its NVMe Admin
+/// commands, rather than reopening the device path per call.
+///
+/// The `identity`, `capacity`, `capabilities`, `limits`, `thermals`,
+/// `firmware`, `power_states`, `host_memory`, `arbitration`,
+/// `diagnostics`, `advanced`, `command_sets`, and `fabric` accessors all
+/// parse different fields out of the same underlying Identify Controller
+/// data (`nvme_id_ctrl`), just grouped by category. Each issues its own
+/// Identify command rather than sharing one cached copy, so calling
+/// several of them fetches the controller data multiple times.
 ///
 /// The descriptor is closed automatically when the `Device` is dropped.
 ///
@@ -124,6 +134,198 @@ impl Device {
     pub fn identity(&self) -> Result<CtrlIdentity> {
         let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
         Ok(CtrlIdentity::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller capacity and storage information from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlCapacity`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn capacity(&self) -> Result<CtrlCapacity> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlCapacity::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller capabilities and feature support from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlCapabilities`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn capabilities(&self) -> Result<CtrlCapabilities> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlCapabilities::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller operational limits and constraints from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlLimits`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn limits(&self) -> Result<CtrlLimits> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlLimits::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller thermal management configuration from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlThermals`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn thermals(&self) -> Result<CtrlThermals> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlThermals::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller firmware update configuration from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlFirmware`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn firmware(&self) -> Result<CtrlFirmware> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlFirmware::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller power state descriptors from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlPowerStates`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn power_states(&self) -> Result<CtrlPowerStates> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlPowerStates::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller Host Memory Buffer (HMB) configuration from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlHostMemory`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn host_memory(&self) -> Result<CtrlHostMemory> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlHostMemory::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller arbitration and quality of service settings from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlArbitration`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn arbitration(&self) -> Result<CtrlArbitration> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlArbitration::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller diagnostic and self-test capabilities from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlDiagnostics`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn diagnostics(&self) -> Result<CtrlDiagnostics> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlDiagnostics::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller advanced features and timing information from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlAdvanced`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn advanced(&self) -> Result<CtrlAdvanced> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlAdvanced::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller command set configuration from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlCommandSets`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn command_sets(&self) -> Result<CtrlCommandSets> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlCommandSets::new(self.nvme_name.clone(), &raw))
+    }
+
+    /// Retrieve controller fabric (NVMe-oF) configuration from this device.
+    ///
+    /// Issues a single, read-only Identify Controller NVMe Admin command.
+    /// See [`CtrlFabric`] for the fields returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The process lacks sufficient permissions (requires root/sudo)
+    /// - The Identify Controller command fails
+    /// - The device is not a valid NVMe controller
+    pub fn fabric(&self) -> Result<CtrlFabric> {
+        let raw = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
+        Ok(CtrlFabric::new(self.nvme_name.clone(), &raw))
     }
 
     /// Retrieve Error Information Log from this device.
