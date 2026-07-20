@@ -122,4 +122,3 @@ fixes) can get the `skip-changelog` label from a maintainer instead.
 - [ ] `cargo test --all-features` passes
 - [ ] `cargo fmt --all` and `cargo clippy --all-targets --all-features` are clean
 
-For how releases work end to end, see [RELEASING.md](RELEASING.md).
