@@ -34,6 +34,11 @@ fn main() {
             }
         };
 
+        // Every metrics object this crate returns carries `nvme_name` and
+        // `serial_number` so it can be identified on its own. Collect the
+        // serial number reported by each log below and confirm they agree.
+        let mut serials: Vec<(&str, String)> = Vec::new();
+
         // Test 2: S.M.A.R.T. Log
         print!("\nTest 2: Reading SMART log... ");
         match device.smart_log() {
@@ -43,6 +48,7 @@ fn main() {
                     "  Device: {} (S/N: {})",
                     smart.nvme_name, smart.serial_number
                 );
+                serials.push(("smart_log", smart.serial_number.clone()));
                 println!("  Temperature: {} K", smart.temperature);
                 println!("  Power Cycles: {}", smart.power_cycles);
                 println!("  Power On Hours: {}", smart.power_on_hours);
@@ -69,6 +75,7 @@ fn main() {
                 println!("    Serial: {}", identity.serial_number);
                 println!("    Model: {}", identity.model_number);
                 println!("    Firmware: {}", identity.firmware_rev);
+                serials.push(("identity", identity.serial_number.clone()));
             }
             Err(e) => {
                 println!("[FAIL] Failed: {}", e);
@@ -85,6 +92,7 @@ fn main() {
                     "  Device: {} (S/N: {})",
                     error_log.nvme_name, error_log.serial_number
                 );
+                serials.push(("error_log", error_log.serial_number.clone()));
                 if error_log.entries.is_empty() {
                     println!("  No errors recorded - healthy drive!");
                 } else {
@@ -115,7 +123,11 @@ fn main() {
         match device.ocp_smart_log() {
             Ok(smart_add_log) => {
                 println!("[OK] Success!");
-                println!("  Device: {}", smart_add_log.nvme_name);
+                println!(
+                    "  Device: {} (S/N: {})",
+                    smart_add_log.nvme_name, smart_add_log.serial_number
+                );
+                serials.push(("ocp_smart_log", smart_add_log.serial_number.clone()));
                 println!(
                     "  Physical Media Written: {}",
                     smart_add_log.physical_media_units_written
@@ -172,6 +184,21 @@ fn main() {
                     "       (OCP extended SMART is vendor-specific - not all drives support it)"
                 );
             }
+        }
+
+        // Test 6: Identifier consistency across all collected logs
+        print!("\nTest 6: Checking serial number consistency across logs... ");
+        match serials.split_first() {
+            Some(((_, first), rest)) => {
+                if let Some((label, mismatched)) = rest.iter().find(|(_, sn)| sn != first) {
+                    println!("[FAIL] Mismatch!");
+                    println!("  Expected S/N: {} (from {})", first, serials[0].0);
+                    println!("  Got S/N: {} (from {})", mismatched, label);
+                } else {
+                    println!("[OK] All {} log(s) agree: S/N {}", serials.len(), first);
+                }
+            }
+            None => println!("[SKIP] No logs were successfully read for this device"),
         }
     }
 
