@@ -9,7 +9,10 @@ documentation = "https://docs.rs/crate/nvme-telem"
 readme = "README.md"
 categories = ["hardware-support"]
 keywords = ["nvme", "storage", "telemetry", "smart", "monitoring"]
-authors = ["Sion Avakian <avakianssion@gmail.com>"]
+authors = [
+    "Sion Avakian <avakianssion@gmail.com>",
+    "Nathanael G. Reese <nathanaelreese@acm.org>"
+]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

@@ -4,8 +4,8 @@
 //!
 //! This library provides a type-safe interface to NVMe device telemetry, including
 //! S.M.A.R.T./Health logs, error logs, and detailed controller identification data.
-//! Data is organized into logical categories (Identity, Capacity, Thermals, etc.)
-//! and supports serialization via serde.
+//! Data is organized into logical categories (identity, capacity, thermals, etc.)
+//! and supports serialization via [`serde`](https://crates.io/crates/serde).
 //!
 //! ## Features
 //!
