@@ -20,15 +20,14 @@ fn main() {
 
     // Test 2-5: Try to read data from each controller
     for ctrl in controllers {
-        let dev_path = format!("/dev/{}", ctrl);
         println!("\n{}", "=".repeat(60));
         println!("Testing: {}", ctrl);
         println!("{}", "=".repeat(60));
 
-        let device = match Device::open(&dev_path) {
+        let device = match Device::open(&ctrl) {
             Ok(device) => device,
             Err(e) => {
-                println!("[FAIL] Could not open {}: {}", dev_path, e);
+                println!("[FAIL] Could not open {}: {}", ctrl, e);
                 println!("       (This might require sudo/root access)");
                 continue;
             }

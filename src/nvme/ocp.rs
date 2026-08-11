@@ -1,10 +1,10 @@
-//! OCP NVMe extensions.
+//! Open Compute Project (OCP) NVMe extensions.
 //!
 //! The OCP NVMe specification defines extended SMART/Health information log pages
 //! that provide additional telemetry beyond the standard NVMe SMART log. This includes
 //! detailed wear metrics, error statistics, and vendor-specific diagnostic data.
 //!
-//! # OCP Extended SMART Log (0xC0)
+//! # OCP Extended SMART Log (`0xC0`)
 //!
 //! This log page provides comprehensive drive health metrics including:
 //! - Physical media units read/written
@@ -28,13 +28,13 @@ use std::io;
 use std::mem::{size_of, zeroed};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
-/// OCP S.M.A.R.T. / Health Information Extended Log (Log ID 0xC0)
+/// OCP S.M.A.R.T. / Health Information Extended Log (Log ID `0xC0`)
 ///
 /// Raw C-compatible structure matching the OCP specification exactly.
 /// This struct is 512 bytes and uses packed representation to match
 /// the hardware data format byte-for-byte without padding.
 ///
-/// Source: linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.h
+/// Source: [`ocp-smart-extended-log.h`](https://github.com/linux-nvme/nvme-cli/blob/master/plugins/ocp/ocp-smart-extended-log.h)
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct OcpSmartExtendedLog {
@@ -241,7 +241,7 @@ const _: () = assert!(size_of::<OcpSmartExtendedLog>() == 512);
 ///
 /// Parsed and organized OCP telemetry data with proper Rust types.
 /// This struct provides a type-safe interface to the raw OCP log data.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct OcpSmartData {
     // NVMe device name (e.g., "nvme0")
     pub nvme_name: String,

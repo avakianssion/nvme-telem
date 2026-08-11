@@ -812,41 +812,49 @@ pub struct NvmeSmartLog {
     /// Temperature Sensor 1 (Bytes 201:200).
     ///
     /// Current temperature reported by temperature sensor 1 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_1: Option<u16>,
 
     /// Temperature Sensor 2 (Bytes 203:202).
     ///
     /// Current temperature reported by temperature sensor 2 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_2: Option<u16>,
 
     /// Temperature Sensor 3 (Bytes 205:204).
     ///
     /// Current temperature reported by temperature sensor 3 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_3: Option<u16>,
 
     /// Temperature Sensor 4 (Bytes 207:206).
     ///
     /// Current temperature reported by temperature sensor 4 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_4: Option<u16>,
 
     /// Temperature Sensor 5 (Bytes 209:208).
     ///
     /// Current temperature reported by temperature sensor 5 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_5: Option<u16>,
 
     /// Temperature Sensor 6 (Bytes 211:210).
     ///
     /// Current temperature reported by temperature sensor 6 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_6: Option<u16>,
 
     /// Temperature Sensor 7 (Bytes 213:212).
     ///
     /// Current temperature reported by temperature sensor 7 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_7: Option<u16>,
 
     /// Temperature Sensor 8 (Bytes 215:214).
     ///
     /// Current temperature reported by temperature sensor 8 in Kelvins.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_sensor_8: Option<u16>,
 
     /// Thermal Management Temperature 1 Transition Count (Bytes 219:216).

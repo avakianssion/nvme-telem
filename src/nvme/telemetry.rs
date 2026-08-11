@@ -6,7 +6,7 @@
 
 use crate::nvme::io::*;
 use crate::nvme::ocp::{OcpSmartData, read_ocp_smart_log_fd};
-use crate::nvme::types::{self, *};
+use crate::nvme::types::*;
 use std::fs::{self, OpenOptions};
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::Path;
@@ -47,27 +47,26 @@ pub struct Device {
 }
 
 impl Device {
-    /// Open an NVMe character device (e.g. `/dev/nvme0`).
+    /// Open an NVMe character device.
     ///
     /// The device is opened once; the resulting file descriptor is reused
     /// by every accessor method on the returned `Device`. Requires
     /// root/sudo privileges.
     ///
+    /// # Parameters
+    /// - `device` - Name of the storage controller assigned by the kernel (e.g. `nvme0`).
+    ///
     /// # Errors
     ///
     /// Returns an error if the device path does not exist or cannot be
     /// opened (e.g. insufficient permissions).
-    pub fn open(path: impl AsRef<Path>) -> Result<Device> {
-        let path = path.as_ref();
+    pub fn open(device: impl AsRef<Path>) -> Result<Device> {
         let file = OpenOptions::new()
             .read(true)
             .write(true) // Admin permission required
-            .open(path)?;
+            .open(Path::new("/dev").join(&device))?;
 
-        let nvme_name = path
-            .to_string_lossy()
-            .trim_start_matches("/dev/")
-            .to_string();
+        let nvme_name = device.as_ref().display().to_string();
 
         Ok(Device {
             fd: file.into(),
@@ -100,7 +99,7 @@ impl Device {
     /// - The device is not a valid NVMe controller
     pub fn smart_log(&self) -> Result<NvmeSmartLog> {
         let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
-        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+        let serial_number = parse_ascii_field(&id_ctrl.sn);
 
         let raw_smart = read_nvme_smart_log_fd(self.fd.as_fd())?;
 
@@ -363,7 +362,7 @@ impl Device {
     pub fn error_log(&self) -> Result<NvmeErrorLog> {
         let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
         let diag = CtrlDiagnostics::new(self.nvme_name.clone(), &id_ctrl);
-        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+        let serial_number = parse_ascii_field(&id_ctrl.sn);
 
         // ELPE is 0-based, so 255 means 256 entries; widen before adding.
         let max_entries = u16::from(diag.elpe) + 1;
@@ -396,7 +395,7 @@ impl Device {
     ///   device does not support the OCP extended SMART log).
     pub fn ocp_smart_log(&self) -> Result<OcpSmartData> {
         let id_ctrl = read_nvme_id_ctrl_fd(self.fd.as_fd())?;
-        let serial_number = types::parse_ascii_field(&id_ctrl.sn);
+        let serial_number = parse_ascii_field(&id_ctrl.sn);
 
         let raw_smart_add_log = read_ocp_smart_log_fd(self.fd.as_fd())?;
 
@@ -583,13 +582,13 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn deprecated_wrappers_fail_the_same_way_as_device_open() {
-        let path = "/dev/nvme-telem-does-not-exist-xyz";
+        let device = "nvme-telem-does-not-exist-xyz";
 
-        let device_err = Device::open(path).unwrap_err();
-        let smart_err = get_smart_log(path).unwrap_err();
-        let identity_err = get_controller_identity(path).unwrap_err();
-        let error_log_err = get_error_log(path).unwrap_err();
-        let ocp_err = get_smart_add_log(path).unwrap_err();
+        let device_err = Device::open(device).unwrap_err();
+        let smart_err = get_smart_log(device).unwrap_err();
+        let identity_err = get_controller_identity(device).unwrap_err();
+        let error_log_err = get_error_log(device).unwrap_err();
+        let ocp_err = get_smart_add_log(device).unwrap_err();
 
         assert_eq!(device_err.kind(), smart_err.kind());
         assert_eq!(device_err.kind(), identity_err.kind());
@@ -601,13 +600,13 @@ mod tests {
     fn device_name_strips_dev_prefix() {
         // /dev/null is always present, readable/writable, and lets us reach
         // past `open()` to confirm the name parsing without real NVMe hardware.
-        let device = Device::open("/dev/null").expect("opening /dev/null should succeed");
+        let device = Device::open("null").expect("opening /dev/null should succeed");
         assert_eq!(device.nvme_name, "null");
     }
 
     #[test]
     fn drop_closes_fd_without_panicking() {
-        let device = Device::open("/dev/null").expect("opening /dev/null should succeed");
+        let device = Device::open("null").expect("opening /dev/null should succeed");
         drop(device);
     }
 }
