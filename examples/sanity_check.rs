@@ -1,12 +1,12 @@
 // examples/sanity_check.rs
-use nvme_telem::nvme::{self, Device};
+use nvme_telem::Device;
 
 fn main() {
     println!("--- NVMe Sanity Check ---\n");
 
     // Test 1: List controllers
     println!("Test 1: Discovering NVMe controllers...");
-    let controllers = nvme::list_nvme_controllers();
+    let controllers = nvme_telem::list_nvme_controllers();
     if controllers.is_empty() {
         println!("[FAIL] No NVMe controllers found!");
         println!("       This might be okay if you don't have NVMe hardware.");

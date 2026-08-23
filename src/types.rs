@@ -17,7 +17,7 @@ pub type Result<T> = io::Result<T>;
 /// Contains fundamental identification data for the NVMe controller including
 /// vendor information, serial numbers, firmware revision, and controller IDs.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlIdentity {
+pub struct Identity {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -55,7 +55,7 @@ pub struct CtrlIdentity {
     pub cntrltype: u8,
 }
 
-impl CtrlIdentity {
+impl Identity {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -83,7 +83,7 @@ impl CtrlIdentity {
 /// Provides details about total NVM capacity, unallocated space, and maximum
 /// endurance group capacity for the controller.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlCapacity {
+pub struct Capacity {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -103,7 +103,7 @@ pub struct CtrlCapacity {
     pub max_nvm_area: u32,
 }
 
-impl CtrlCapacity {
+impl Capacity {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -125,7 +125,7 @@ impl CtrlCapacity {
 /// Bitfield indicators for optional admin commands, NVM commands, log page
 /// attributes, sanitize capabilities, and various controller features.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlCapabilities {
+pub struct Capabilities {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -184,7 +184,7 @@ pub struct CtrlCapabilities {
     pub rpmbs: u32,
 }
 
-impl CtrlCapabilities {
+impl Capabilities {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -219,7 +219,7 @@ impl CtrlCapabilities {
 /// Defines maximum transfer sizes, queue entry sizes, outstanding commands,
 /// namespace counts, and atomic operation units.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlLimits {
+pub struct Limits {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -266,7 +266,7 @@ pub struct CtrlLimits {
     pub endgidmax: u16,
 }
 
-impl CtrlLimits {
+impl Limits {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -296,7 +296,7 @@ impl CtrlLimits {
 ///
 /// Temperature thresholds and thermal management settings for the controller.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlThermals {
+pub struct Thermals {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -319,7 +319,7 @@ pub struct CtrlThermals {
     pub hctma: u16,
 }
 
-impl CtrlThermals {
+impl Thermals {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -342,7 +342,7 @@ impl CtrlThermals {
 /// Settings related to firmware updates including update capabilities,
 /// granularity, and activation timing.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlFirmware {
+pub struct Firmware {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -359,7 +359,7 @@ pub struct CtrlFirmware {
     pub mtfa: u16,
 }
 
-impl CtrlFirmware {
+impl Firmware {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -380,7 +380,7 @@ impl CtrlFirmware {
 /// Contains all 32 power state descriptors defined by the NVMe specification
 /// along with the number of supported states and autonomous transition attributes.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlPowerStates {
+pub struct PowerStates {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -397,7 +397,7 @@ pub struct CtrlPowerStates {
     //pub power_state_descriptors: [nvme_id_power_state; 32],
 }
 
-impl CtrlPowerStates {
+impl PowerStates {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -418,7 +418,7 @@ impl CtrlPowerStates {
 /// Settings for the Host Memory Buffer (HMB) feature, including preferred and
 /// minimum sizes, and descriptor limits.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlHostMemory {
+pub struct HostMemory {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -438,7 +438,7 @@ pub struct CtrlHostMemory {
     pub hmmaxd: u16,
 }
 
-impl CtrlHostMemory {
+impl HostMemory {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -459,7 +459,7 @@ impl CtrlHostMemory {
 ///
 /// Configuration for weighted round-robin arbitration.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlArbitration {
+pub struct Arbitration {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -470,7 +470,7 @@ pub struct CtrlArbitration {
     pub rab: u8,
 }
 
-impl CtrlArbitration {
+impl Arbitration {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -488,7 +488,7 @@ impl CtrlArbitration {
 ///
 /// Information about device self-test features, timing, and error log capacity.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlDiagnostics {
+pub struct Diagnostics {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -505,7 +505,7 @@ pub struct CtrlDiagnostics {
     pub elpe: u8,
 }
 
-impl CtrlDiagnostics {
+impl Diagnostics {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -526,7 +526,7 @@ impl CtrlDiagnostics {
 /// RTD3 (Runtime D3) latencies, command retry delays, subsystem reporting,
 /// and other advanced controller features.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlAdvanced {
+pub struct Advanced {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -570,7 +570,7 @@ pub struct CtrlAdvanced {
     pub domainid: u16,
 }
 
-impl CtrlAdvanced {
+impl Advanced {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -599,7 +599,7 @@ impl CtrlAdvanced {
 ///
 /// Vendor-specific command support and namespace write protection capabilities.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlCommandSets {
+pub struct CommandSets {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -616,7 +616,7 @@ pub struct CtrlCommandSets {
     pub nwpc: u8,
 }
 
-impl CtrlCommandSets {
+impl CommandSets {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -637,7 +637,7 @@ impl CtrlCommandSets {
 /// Settings specific to NVMe over Fabrics including capsule sizes,
 /// offsets, and fabric command support.
 #[derive(Debug, Serialize, PartialEq)]
-pub struct CtrlFabric {
+pub struct Fabric {
     /// NVMe device name (e.g., "nvme0")
     pub nvme_name: String,
 
@@ -663,7 +663,7 @@ pub struct CtrlFabric {
     pub ofcs: u16,
 }
 
-impl CtrlFabric {
+impl Fabric {
     pub fn new(nvme_name: String, raw: &nvme_id_ctrl) -> Self {
         Self {
             nvme_name,
@@ -1103,53 +1103,47 @@ mod tests {
         raw.sn[..sn.len()].copy_from_slice(&sn);
 
         assert_eq!(
-            CtrlCapacity::new("nvme0".into(), &raw).serial_number,
+            Capacity::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlCapabilities::new("nvme0".into(), &raw).serial_number,
+            Capabilities::new("nvme0".into(), &raw).serial_number,
+            "SN123456"
+        );
+        assert_eq!(Limits::new("nvme0".into(), &raw).serial_number, "SN123456");
+        assert_eq!(
+            Thermals::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlLimits::new("nvme0".into(), &raw).serial_number,
+            Firmware::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlThermals::new("nvme0".into(), &raw).serial_number,
+            PowerStates::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlFirmware::new("nvme0".into(), &raw).serial_number,
+            HostMemory::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlPowerStates::new("nvme0".into(), &raw).serial_number,
+            Arbitration::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlHostMemory::new("nvme0".into(), &raw).serial_number,
+            Diagnostics::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlArbitration::new("nvme0".into(), &raw).serial_number,
+            Advanced::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
         assert_eq!(
-            CtrlDiagnostics::new("nvme0".into(), &raw).serial_number,
+            CommandSets::new("nvme0".into(), &raw).serial_number,
             "SN123456"
         );
-        assert_eq!(
-            CtrlAdvanced::new("nvme0".into(), &raw).serial_number,
-            "SN123456"
-        );
-        assert_eq!(
-            CtrlCommandSets::new("nvme0".into(), &raw).serial_number,
-            "SN123456"
-        );
-        assert_eq!(
-            CtrlFabric::new("nvme0".into(), &raw).serial_number,
-            "SN123456"
-        );
+        assert_eq!(Fabric::new("nvme0".into(), &raw).serial_number, "SN123456");
     }
 
     #[test]
